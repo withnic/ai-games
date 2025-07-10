@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ハイ＆ロー ゲーム (アイテム機能付)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            touch-action: manipulation;
+        }
+        .card {
+            width: 120px;
+            height: 180px;
+            perspective: 1000px;
+        }
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s;
+            transform-style: preserve-3d;
+        }
+        .card.flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            -webkit-backface-visibility: hidden;
+            backface-visibility: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            border-radius: 0.75rem;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        .card-front { 
+            background-color: #4f46e5;
+            background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.2) 1px, transparent 0);
+            background-size: 20px 20px;
+            color: white;
+        }
+        .card-back { 
+            background-color: #f8fafc;
+            color: #1e293b;
+            font-size: 3.5rem;
+            font-weight: bold;
+            transform: rotateY(180deg);
+        }
+        .btn {
+            transition: all 0.2s ease-in-out;
+        }
+        .btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0,0,0,0.15);
+        }
+        .btn:active:not(:disabled) {
+            transform: translateY(0);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        @keyframes pulse-light {
+            0%, 100% { box-shadow: 0 0 5px #fde047, 0 0 10px #fde047; }
+            50% { box-shadow: 0 0 15px #facc15, 0 0 25px #facc15; }
+        }
+        .pulsing {
+            animation: pulse-light 1.5s infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto bg-white rounded-2xl shadow-xl p-6 text-center">
+
+        <h1 class="text-3xl md:text-4xl font-bold text-slate-800 mb-2">ハイ＆ロー</h1>
+        <p class="text-slate-500 mb-4">奪還ボーナスで一攫千金！</p>
+
+        <!-- NEW: Today's Records Area -->
+        <div class="mb-4 text-center">
+            <div class="inline-block bg-amber-100 text-amber-800 rounded-lg px-4 py-2">
+                <p class="text-sm font-semibold">🌟 本日の最高メダル: <span id="todays-max-medals" class="font-bold">100</span></p>
+                <p class="text-sm font-semibold">🎉 本日の最大獲得: <span id="todays-max-winnings" class="font-bold">0</span></p>
+            </div>
+        </div>
+
+        <!-- メダルとスコア表示 -->
+        <div class="space-y-2 bg-slate-50 p-3 rounded-lg mb-4 text-center">
+            <div class="grid grid-cols-2 gap-2">
+                <div>
+                    <p class="text-slate-500 text-xs">💰 所持メダル</p>
+                    <p id="medals" class="text-xl font-bold text-indigo-600">100</p>
+                </div>
+                <div id="pool-container">
+                    <p class="text-slate-500 text-xs">🔥 プール賞金</p>
+                    <p id="pool" class="text-xl font-bold text-amber-500">0</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2 border-t border-slate-200 pt-2">
+                <div>
+                    <p class="text-slate-500 text-xs">🏆 本日の正解数</p>
+                    <p id="todays-wins" class="text-lg font-bold text-slate-800">0</p>
+                </div>
+                <div>
+                    <p class="text-slate-500 text-xs">💀 没収メダル</p>
+                    <p id="forfeited-medals" class="text-lg font-bold text-red-600">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- カード表示エリア -->
+        <div class="flex justify-around items-center mb-4">
+            <div>
+                <p class="text-sm font-bold text-slate-500 mb-2">現在のカード</p>
+                <div id="current-card-container" class="card">
+                    <div class="card-inner">
+                        <div class="card-face card-front"></div>
+                        <div id="current-card" class="card-face card-back"></div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <p class="text-sm font-bold text-slate-500 mb-2">次のカード</p>
+                <div id="next-card-container" class="card">
+                    <div class="card-inner">
+                        <div class="card-face card-front"></div>
+                        <div id="next-card" class="card-face card-back"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- アイテムショップと所持アイテム -->
+        <div id="item-section" class="my-4 p-3 bg-slate-50 rounded-lg">
+            <div class="flex justify-between items-center mb-2 gap-2">
+                <h3 class="font-bold text-slate-700">アイテム</h3>
+                <div class="flex gap-2">
+                    <button id="buy-shuffle-btn" class="btn bg-cyan-400 hover:bg-cyan-500 text-white font-bold py-1 px-3 rounded-md text-sm">🔄 (10💰)</button>
+                    <button id="buy-knife-btn" class="btn bg-rose-500 hover:bg-rose-600 text-white font-bold py-1 px-3 rounded-md text-sm">🔪 (30💰)</button>
+                </div>
+            </div>
+            <div id="inventory-area" class="flex gap-2 justify-center items-center min-h-[40px]">
+                <!-- 所持アイテムがここに表示される -->
+            </div>
+            <p id="item-warning-message" class="text-xs text-red-500 mt-1 h-4"></p>
+        </div>
+
+        <!-- ベット入力エリア -->
+        <div id="bet-area" class="mb-4">
+            <label class="block text-sm font-medium text-slate-700 mb-2">ベットする枚数</label>
+            <div class="flex justify-center items-center space-x-4">
+                <button id="decrease-bet-btn" class="btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold w-12 h-12 rounded-full text-2xl flex items-center justify-center">-</button>
+                <p id="bet-display" class="text-2xl font-bold w-16 text-center">1</p>
+                <button id="increase-bet-btn" class="btn bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold w-12 h-12 rounded-full text-2xl flex items-center justify-center">+</button>
+            </div>
+        </div>
+
+        <!-- 結果メッセージ表示エリア -->
+        <div id="message" class="h-12 flex items-center justify-center mb-4">
+             <p class="text-xl font-bold"></p>
+        </div>
+
+        <!-- 操作ボタンエリア -->
+        <div id="action-area" class="mb-6">
+            <button id="action-btn" class="w-full btn bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-5 rounded-lg">勝負！</button>
+        </div>
+        <div id="controls" class="grid grid-cols-2 gap-4 mb-6" style="display: none;">
+            <button id="low-btn" class="btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg text-lg shadow-md">LOW</button>
+            <button id="high-btn" class="btn bg-red-500 hover:bg-red-600 text-white font-bold py-3 px-4 rounded-lg text-lg shadow-md">HIGH</button>
+        </div>
+        <button id="cashout-btn" class="w-full btn bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-5 rounded-lg mb-6" style="display: none;">換金する</button>
+
+        <button id="reset-btn" class="w-full btn bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-5 rounded-lg text-sm">ゲームをリセット</button>
+    </div>
+
+    <script>
+        // --- DOM要素の取得 ---
+        const currentCardContainerEl = document.getElementById('current-card-container');
+        const currentCardEl = document.getElementById('current-card');
+        const nextCardEl = document.getElementById('next-card');
+        const nextCardContainerEl = document.getElementById('next-card-container');
+        const highBtn = document.getElementById('high-btn');
+        const lowBtn = document.getElementById('low-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const cashoutBtn = document.getElementById('cashout-btn');
+        const messageEl = document.querySelector('#message p');
+        const medalsEl = document.getElementById('medals');
+        const poolEl = document.getElementById('pool');
+        const poolContainer = document.getElementById('pool-container');
+        const betArea = document.getElementById('bet-area');
+        const decreaseBetBtn = document.getElementById('decrease-bet-btn');
+        const increaseBetBtn = document.getElementById('increase-bet-btn');
+        const betDisplay = document.getElementById('bet-display');
+        const todaysWinsEl = document.getElementById('todays-wins');
+        const todaysMaxMedalsEl = document.getElementById('todays-max-medals');
+        const todaysMaxWinningsEl = document.getElementById('todays-max-winnings');
+        const forfeitedMedalsEl = document.getElementById('forfeited-medals');
+        const controls = document.getElementById('controls');
+        const actionArea = document.getElementById('action-area');
+        const actionBtn = document.getElementById('action-btn');
+        const buyShuffleBtn = document.getElementById('buy-shuffle-btn');
+        const buyKnifeBtn = document.getElementById('buy-knife-btn');
+        const inventoryArea = document.getElementById('inventory-area');
+        const itemWarningMessageEl = document.getElementById('item-warning-message');
+
+        // --- ゲームの状態を管理する変数 ---
+        let currentCardValue = 0;
+        let nextCardValue = 0;
+        let medals = 100;
+        let todaysMaxMedals = 100;
+        let todaysMaxWinnings = 0;
+        let pooledMedals = 0;
+        let currentBet = 0;
+        let lastBetAmount = 1;
+        let isInDoubleUp = false;
+        let todaysWins = 0;
+        let forfeitedMedals = 0;
+        let bonusPoints = 0;
+        let isBonusGame = false;
+        let bonusGameStreak = 0;
+        let isKnifeBonusGame = false;
+        let knifeBonusStreak = 0;
+        let inventory = [];
+        const STORAGE_KEY = 'highLowGameData';
+        const FATAL_CARD = '💀';
+
+        // --- サウンドの準備 (Tone.js) ---
+        let synth;
+        document.body.addEventListener('click', () => { if (!synth) synth = new Tone.PolySynth(Tone.Synth).toDestination(); }, { once: true });
+        
+        const playWinSound = () => synth?.triggerAttackRelease(["C5", "E5", "G5"], "8n");
+        const playLoseSound = () => synth?.triggerAttackRelease("C3", "4n");
+        const playFatalSound = () => synth?.triggerAttackRelease(["C3", "D#3", "G#3"], "2n");
+        const playCashOutSound = () => synth?.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n");
+        const playBetSound = () => synth?.triggerAttackRelease("D6", "16n");
+        const playBonusStartSound = () => synth?.triggerAttackRelease(["C4", "G4", "C5", "E5"], "4n");
+        const playCardFlipSound = () => synth?.triggerAttackRelease("A5", "16n");
+        const playItemSound = () => synth?.triggerAttackRelease("A4", "8n");
+        const playKnifeBonusSound = () => synth?.triggerAttackRelease(["A4", "E5", "A5"], "4n");
+
+        // --- データ管理 (localStorage) ---
+        function saveGameState() {
+            const gameState = { todaysWins, bonusPoints, forfeitedMedals, medals, inventory, lastBetAmount, todaysMaxMedals, todaysMaxWinnings, lastPlayed: new Date().toLocaleDateString() };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(gameState));
+        }
+
+        function loadGameState() {
+            const savedData = JSON.parse(localStorage.getItem(STORAGE_KEY));
+            const today = new Date().toLocaleDateString();
+
+            if (savedData) {
+                medals = savedData.medals !== undefined ? savedData.medals : 100;
+                inventory = savedData.inventory || [];
+                forfeitedMedals = savedData.forfeitedMedals || 0;
+                lastBetAmount = savedData.lastBetAmount || 1;
+                if (savedData.lastPlayed === today) {
+                    todaysWins = savedData.todaysWins || 0;
+                    bonusPoints = savedData.bonusPoints || 0;
+                    todaysMaxMedals = savedData.todaysMaxMedals || medals;
+                    todaysMaxWinnings = savedData.todaysMaxWinnings || 0;
+                } else {
+                    todaysWins = 0;
+                    bonusPoints = 0;
+                    todaysMaxMedals = medals;
+                    todaysMaxWinnings = 0;
+                }
+            }
+            saveGameState();
+        }
+
+        // --- UI更新関数 ---
+        function updateUI() {
+            if (medals > todaysMaxMedals) {
+                todaysMaxMedals = medals;
+            }
+            medalsEl.textContent = medals;
+            poolEl.textContent = pooledMedals;
+            betDisplay.textContent = currentBet;
+            todaysWinsEl.textContent = todaysWins;
+            todaysMaxMedalsEl.textContent = todaysMaxMedals;
+            todaysMaxWinningsEl.textContent = todaysMaxWinnings;
+            forfeitedMedalsEl.textContent = forfeitedMedals;
+            renderInventory();
+            updateBetButtons();
+            
+            const canUseItem = controls.style.display === 'grid';
+            if (inventory.includes('shuffle') && canUseItem && pooledMedals > 0) {
+                itemWarningMessageEl.textContent = '※シャッフルを使うと賞金が半分になります！';
+            } else {
+                itemWarningMessageEl.textContent = '';
+            }
+        }
+        
+        function renderInventory() {
+            inventoryArea.innerHTML = '';
+            if (inventory.length === 0) {
+                inventoryArea.innerHTML = `<p class="text-sm text-slate-400">アイテムを持っていません</p>`;
+            } else {
+                inventory.forEach((item) => {
+                    const itemBtn = document.createElement('button');
+                    if (item === 'shuffle') {
+                        itemBtn.innerHTML = `🔄<span class="ml-1">シャッフル</span>`;
+                        itemBtn.className = 'btn bg-cyan-400 hover:bg-cyan-500 text-white font-bold py-1 px-3 rounded-md text-sm';
+                        itemBtn.onclick = useShuffleCard;
+                    } else if (item === 'knife') {
+                        itemBtn.innerHTML = `🔪<span class="ml-1">ナイフ</span>`;
+                        itemBtn.className = 'btn bg-rose-500 hover:bg-rose-600 text-white font-bold py-1 px-3 rounded-md text-sm';
+                        itemBtn.onclick = useKnife;
+                    }
+                    inventoryArea.appendChild(itemBtn);
+                });
+            }
+            const useButtons = inventoryArea.querySelectorAll('button');
+            const canUseItem = controls.style.display === 'grid';
+            useButtons.forEach(btn => btn.disabled = !canUseItem);
+        }
+
+        function updateBetButtons() {
+            decreaseBetBtn.disabled = currentBet <= 1;
+            increaseBetBtn.disabled = currentBet >= 10 || medals + currentBet < currentBet + 1;
+        }
+
+        // --- ゲーム開始/リセット処理 ---
+        function startGame() {
+            medals = 100;
+            todaysMaxMedals = 100;
+            todaysMaxWinnings = 0;
+            pooledMedals = 0;
+            currentBet = 0;
+            todaysWins = 0;
+            bonusPoints = 0;
+            forfeitedMedals = 0;
+            inventory = [];
+            lastBetAmount = 1;
+            saveGameState();
+            isBonusGame = false;
+            bonusGameStreak = 0;
+            isKnifeBonusGame = false;
+            knifeBonusStreak = 0;
+            startNewRound();
+        }
+
+        // --- 新規ラウンド開始処理 ---
+        function startNewRound() {
+            isInDoubleUp = false;
+            isKnifeBonusGame = false;
+            knifeBonusStreak = 0;
+            medals += currentBet;
+            currentBet = 0;
+            
+            if (medals > 0) {
+                let potentialBet = lastBetAmount;
+                if (potentialBet > medals) {
+                    potentialBet = medals;
+                }
+                if (potentialBet === 0) {
+                    potentialBet = 1;
+                }
+                currentBet = potentialBet;
+                medals -= currentBet;
+            } else {
+                messageEl.textContent = "メダルがなくなりました！";
+                actionBtn.disabled = true;
+            }
+            
+            currentCardContainerEl.classList.remove('flipped');
+            nextCardContainerEl.classList.remove('flipped');
+            setTimeout(() => {
+                currentCardEl.textContent = '';
+                nextCardEl.textContent = '';
+            }, 300);
+
+            poolContainer.classList.remove('pulsing');
+            
+            betArea.style.display = 'block';
+            actionArea.style.display = 'block';
+            
+            if (bonusPoints > 0 && forfeitedMedals > 0) {
+                 actionBtn.textContent = 'ボーナス開始！';
+                 messageEl.innerHTML = `<span class="text-violet-500 font-bold">奪還ボーナス！5連勝で没収メダルを取り返せ！</span>`;
+            } else {
+                actionBtn.textContent = '勝負！';
+                messageEl.textContent = "ベットして勝負！";
+            }
+            
+            actionBtn.disabled = medals + currentBet <= 0;
+            controls.style.display = 'none';
+            cashoutBtn.style.display = 'none';
+            
+            updateUI();
+        }
+        
+        // --- カードを公開してGUESSを開始する ---
+        function prepareForGuess() {
+            actionArea.style.display = 'none';
+            betArea.style.display = 'none';
+            controls.style.display = 'grid';
+            highBtn.disabled = false;
+            lowBtn.disabled = false;
+            
+            updateUI();
+        }
+
+        // --- 予想をチェックする関数 ---
+        function checkGuess(guess) {
+            highBtn.disabled = true;
+            lowBtn.disabled = true;
+            cashoutBtn.style.display = 'none';
+            inventoryArea.querySelectorAll('button').forEach(btn => btn.disabled = true);
+
+            const betAmount = currentBet;
+            if (!isInDoubleUp) {
+                lastBetAmount = betAmount;
+            }
+            
+            if (isKnifeBonusGame) {
+                checkKnifeBonusGuess(guess);
+                return;
+            }
+
+            nextCardValue = generateNextCardValue();
+            nextCardEl.textContent = nextCardValue;
+            playCardFlipSound();
+            nextCardContainerEl.classList.add('flipped');
+            
+            setTimeout(() => {
+                if (nextCardValue === FATAL_CARD) {
+                    playFatalSound();
+                    messageEl.innerHTML = `<span class="text-black font-bold">ドクロだ！強制的に負け...</span>`;
+                    handleLoss(betAmount);
+                    return;
+                }
+
+                const result = (nextCardValue > currentCardValue) ? 'high' : (nextCardValue < currentCardValue) ? 'low' : 'draw';
+
+                if (guess === result || result === 'draw') {
+                    handleWin(betAmount);
+                } else {
+                    playLoseSound();
+                    messageEl.textContent = `残念！賞金は没収です...`;
+                    handleLoss(betAmount);
+                }
+            }, 800);
+        }
+
+        function handleWin(betAmount) {
+            playWinSound();
+            poolContainer.classList.add('pulsing');
+
+            if (!isBonusGame) {
+                todaysWins++;
+                if (todaysWins > 0 && todaysWins % 10 === 0) {
+                    bonusPoints++;
+                }
+            }
+
+            if (!isInDoubleUp) {
+                isInDoubleUp = true;
+                if (!isBonusGame) { // Normal game
+                    pooledMedals = betAmount;
+                    currentBet = 0;
+                    pooledMedals *= 2;
+                } else { // First win in Recapture Bonus
+                    pooledMedals = 0; 
+                    currentBet = 0;
+                }
+            } else {
+                pooledMedals *= 2;
+            }
+            
+            if (isBonusGame) {
+                bonusGameStreak++;
+                if (bonusGameStreak < 5) {
+                    messageEl.innerHTML = `<span class="text-violet-500 font-bold">ボーナス中！あと ${5 - bonusGameStreak}回！</span>`;
+                } else {
+                    const reclaimed = forfeitedMedals;
+                    pooledMedals += reclaimed;
+                    forfeitedMedals = 0;
+                    isBonusGame = false;
+                    bonusGameStreak = 0;
+                    messageEl.innerHTML = `<span class="text-amber-500 font-bold">${reclaimed}枚奪還成功！</span>`;
+                }
+            } else {
+                messageEl.textContent = `正解！賞金は${pooledMedals}枚！`;
+            }
+            
+            setTimeout(() => {
+                controls.style.display = 'none';
+                actionArea.style.display = 'block';
+                
+                if (isBonusGame || isKnifeBonusGame) {
+                    actionBtn.textContent = '続ける';
+                    actionBtn.disabled = false;
+                } else {
+                    const continueCost = Math.ceil(pooledMedals / 3);
+                    actionBtn.textContent = `続ける (コスト: ${continueCost}💰)`;
+                    if (medals < continueCost) {
+                        actionBtn.disabled = true;
+                    } else {
+                        actionBtn.disabled = false;
+                    }
+                }
+                
+                if (!isBonusGame && !isKnifeBonusGame) {
+                    cashoutBtn.style.display = 'block';
+                }
+            }, 1000);
+            updateUI();
+            saveGameState();
+        }
+
+        function handleLoss(betAmount) {
+            const lostAmount = (pooledMedals > 0 ? pooledMedals : betAmount);
+            forfeitedMedals += lostAmount;
+            
+            pooledMedals = 0;
+            currentBet = 0;
+            isBonusGame = false;
+            bonusGameStreak = 0;
+            
+            if (medals <= 0 && currentBet <= 0) {
+                messageEl.textContent = "メダルがなくなりました...リセットします。";
+                setTimeout(startGame, 2500);
+            } else {
+                 setTimeout(startNewRound, 2500);
+            }
+            updateUI();
+            saveGameState();
+        }
+
+        // --- アイテム関連の関数 ---
+        function buyItem(itemName, cost) {
+            if (medals < cost) {
+                messageEl.textContent = 'メダルが足りません！';
+                return;
+            }
+            if (inventory.length >= 3) {
+                messageEl.textContent = 'アイテムがいっぱいです！';
+                return;
+            }
+            medals -= cost;
+            inventory.push(itemName);
+            playItemSound();
+            updateUI();
+            saveGameState();
+        }
+
+        function useShuffleCard() {
+            const itemIndex = inventory.indexOf('shuffle');
+            if (itemIndex > -1) {
+                inventory.splice(itemIndex, 1);
+                
+                if (isInDoubleUp && pooledMedals > 0) {
+                    pooledMedals = Math.floor(pooledMedals / 2);
+                }
+                
+                currentCardValue = generateCurrentCardValue();
+                currentCardEl.textContent = currentCardValue;
+                playItemSound();
+                updateUI();
+                saveGameState();
+            }
+        }
+
+        function useKnife() {
+            const itemIndex = inventory.indexOf('knife');
+            if (itemIndex > -1) {
+                inventory.splice(itemIndex, 1);
+                playItemSound();
+                inventoryArea.querySelectorAll('button').forEach(btn => btn.disabled = true);
+                
+                nextCardValue = generateNextCardValue();
+                nextCardEl.textContent = nextCardValue;
+                nextCardContainerEl.classList.add('flipped');
+
+                setTimeout(() => {
+                    if (nextCardValue === FATAL_CARD) {
+                        playKnifeBonusSound();
+                        isKnifeBonusGame = true;
+                        knifeBonusStreak = 0;
+                        pooledMedals += (medals + forfeitedMedals) * 2;
+                        medals = 0;
+                        forfeitedMedals = 0;
+                        messageEl.innerHTML = `<span class="text-rose-500 font-bold">ナイフボーナス！10連勝で総取り！</span>`;
+                        currentCardValue = generateCurrentCardValue();
+                        currentCardEl.textContent = currentCardValue;
+                        nextCardContainerEl.classList.remove('flipped');
+                        setTimeout(() => nextCardEl.textContent = '', 300);
+                        highBtn.disabled = false;
+                        lowBtn.disabled = false;
+                    } else {
+                        messageEl.textContent = 'ナイフは空を切った...失敗だ。';
+                        handleLoss(currentBet);
+                    }
+                    updateUI();
+                    saveGameState();
+                }, 1000);
+            }
+        }
+        
+        function checkKnifeBonusGuess(guess) {
+             nextCardValue = generateNextCardValue();
+             nextCardEl.textContent = nextCardValue;
+             playCardFlipSound();
+             nextCardContainerEl.classList.add('flipped');
+
+             setTimeout(() => {
+                if (nextCardValue === FATAL_CARD) {
+                    playFatalSound();
+                    messageEl.innerHTML = `<span class="text-black font-bold">ボーナス失敗！</span>`;
+                    handleLoss(0);
+                    return;
+                }
+                const result = (nextCardValue > currentCardValue) ? 'high' : (nextCardValue < currentCardValue) ? 'low' : 'draw';
+                if (guess === result || result === 'draw') {
+                    playWinSound();
+                    knifeBonusStreak++;
+                    pooledMedals *= 2;
+                    if (knifeBonusStreak >= 10) {
+                        messageEl.innerHTML = `<span class="text-amber-500 font-bold">10連勝達成！おめでとう！</span>`;
+                        cashOut();
+                    } else {
+                        messageEl.innerHTML = `<span class="text-rose-500 font-bold">あと ${10 - knifeBonusStreak} 回！</span>`;
+                        currentCardValue = nextCardValue;
+                        setTimeout(() => {
+                            nextCardContainerEl.classList.remove('flipped');
+                            highBtn.disabled = false;
+                            lowBtn.disabled = false;
+                        }, 1000);
+                    }
+                } else {
+                    playLoseSound();
+                    messageEl.innerHTML = `<span class="text-black font-bold">ボーナス失敗！</span>`;
+                    handleLoss(0);
+                }
+                updateUI();
+             }, 800);
+        }
+
+        // --- 換金処理 ---
+        function cashOut() {
+            playCashOutSound();
+            messageEl.textContent = `${pooledMedals}枚獲得！おめでとう！`;
+            
+            if (pooledMedals > todaysMaxWinnings) {
+                todaysMaxWinnings = pooledMedals;
+            }
+
+            medals += pooledMedals;
+            pooledMedals = 0;
+            
+            setTimeout(startNewRound, 2000);
+        }
+
+        const generateCurrentCardValue = () => Math.floor(Math.random() * 13) + 1;
+        const generateNextCardValue = () => {
+            const rand = Math.floor(Math.random() * 20);
+            if (rand >= 19) {
+                return FATAL_CARD;
+            }
+            return Math.floor(Math.random() * 13) + 1;
+        };
+
+        // --- イベントリスナー ---
+        actionBtn.addEventListener('click', () => {
+            cashoutBtn.style.display = 'none';
+            if (actionBtn.textContent.startsWith('続ける')) {
+                if (!isBonusGame) { // FIX: Only charge cost if not in RECAPTURE bonus
+                    const continueCost = Math.ceil(pooledMedals / 3);
+                    if (medals < continueCost) {
+                        messageEl.textContent = `続けるには${continueCost}枚のメダルが必要です！`;
+                        cashoutBtn.style.display = 'block';
+                        return;
+                    }
+                    medals -= continueCost;
+                }
+                playBetSound();
+                
+                currentCardValue = generateCurrentCardValue();
+                
+                currentCardContainerEl.classList.remove('flipped');
+                nextCardContainerEl.classList.remove('flipped');
+                setTimeout(() => {
+                    currentCardEl.textContent = currentCardValue;
+                    currentCardContainerEl.classList.add('flipped');
+                    nextCardEl.textContent = '';
+                    prepareForGuess();
+                }, 600);
+            } else if (actionBtn.textContent === 'ボーナス開始！') {
+                isBonusGame = true;
+                bonusPoints--;
+                saveGameState();
+                playBonusStartSound();
+                
+                medals += currentBet;
+                currentBet = 0;
+
+                betArea.style.display = 'none';
+                
+                messageEl.innerHTML = `<span class="text-violet-500 font-bold">奪還ボーナス スタート！</span>`;
+                bonusGameStreak = 0;
+
+                currentCardValue = generateCurrentCardValue();
+                currentCardEl.textContent = currentCardValue;
+                playCardFlipSound();
+                currentCardContainerEl.classList.add('flipped');
+                setTimeout(prepareForGuess, 400);
+
+            } else { // "勝負！"
+                isBonusGame = false;
+                currentCardValue = generateCurrentCardValue();
+                currentCardEl.textContent = currentCardValue;
+                playCardFlipSound();
+                currentCardContainerEl.classList.add('flipped');
+                setTimeout(prepareForGuess, 400);
+            }
+        });
+
+        increaseBetBtn.addEventListener('click', () => {
+            if (currentBet < 10 && (medals + currentBet) > currentBet) {
+                medals--;
+                currentBet++;
+                playBetSound();
+                updateUI();
+            }
+        });
+
+        decreaseBetBtn.addEventListener('click', () => {
+            if (currentBet > 1) {
+                medals++;
+                currentBet--;
+                updateUI();
+            }
+        });
+
+        highBtn.addEventListener('click', () => checkGuess('high'));
+        lowBtn.addEventListener('click', () => checkGuess('low'));
+        cashoutBtn.addEventListener('click', cashOut);
+        resetBtn.addEventListener('click', startGame);
+        buyShuffleBtn.addEventListener('click', () => buyItem('shuffle', 10));
+        buyKnifeBtn.addEventListener('click', () => buyItem('knife', 30));
+
+        // --- ゲーム初期化 ---
+        window.onload = () => {
+            loadGameState();
+            startNewRound();
+        };
+    </script>
+</body>
+</html>
