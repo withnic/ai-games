@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>フォックス・アンド・ヘンズ</title>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            touch-action: manipulation;
+        }
+        .board-container {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            grid-template-rows: repeat(7, 1fr);
+            width: 90vmin;
+            height: 90vmin;
+            max-width: 600px;
+            max-height: 600px;
+            background-color: #c2a16f;
+            border: 8px solid #6b4e2a;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+        }
+        .hole {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+        }
+        .hole::before {
+            content: '';
+            position: absolute;
+            width: 70%;
+            height: 70%;
+            background-color: #a18057;
+            border-radius: 50%;
+            box-shadow: inset 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .piece {
+            width: 65%;
+            height: 65%;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: clamp(1rem, 5vmin, 2.5rem);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+            z-index: 10;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .selected {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px 5px #ffdd00;
+        }
+        .valid-move {
+            background-color: rgba(13, 224, 45, 0.4);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 5;
+            position: absolute;
+            width: 100%;
+            height: 100%;
+        }
+        .invalid {
+            background-color: transparent !important;
+        }
+        .invalid::before {
+            display: none;
+        }
+        .status-box {
+            background-color: #f0e6d2;
+            border: 4px solid #b39564;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            min-width: 320px;
+        }
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <!-- モード選択モーダル -->
+    <div id="mode-selection-modal" class="modal-overlay">
+        <div class="modal-content">
+            <div id="main-menu">
+                <h2 class="text-2xl font-bold mb-6">モードを選択してください</h2>
+                <div class="space-y-4">
+                    <button data-mode="playerAsHens" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg">🐔 ヘンズでプレイ (対CPU)</button>
+                    <button data-mode="playerAsFox" class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-lg">🦊 フォックスでプレイ (対CPU)</button>
+                    <button data-mode="pvp" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg">👤 プレイヤー対戦</button>
+                </div>
+            </div>
+            <div id="difficulty-menu" class="hidden">
+                 <h2 class="text-2xl font-bold mb-6">CPUの強さを選択してください</h2>
+                 <div class="space-y-4">
+                    <button data-difficulty="weak" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg">弱い</button>
+                    <button data-difficulty="strong" class="w-full bg-red-700 hover:bg-red-800 text-white font-bold py-3 px-6 rounded-lg">強い</button>
+                 </div>
+                 <button id="back-to-main" class="mt-6 text-gray-600 hover:text-gray-800">← モード選択に戻る</button>
+            </div>
+            <div id="fox-count-menu" class="hidden">
+                <h2 class="text-2xl font-bold mb-6">フォックスの数を選択してください</h2>
+                <div class="space-y-4">
+                   <button data-foxes="1" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg">1匹</button>
+                   <button data-foxes="2" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg">2匹</button>
+                   <button data-foxes="3" class="w-full bg-gray-500 hover:bg-gray-600 text-white font-bold py-3 px-6 rounded-lg">3匹</button>
+                </div>
+                <button id="back-from-fox-count" class="mt-6 text-gray-600 hover:text-gray-800">← 戻る</button>
+           </div>
+        </div>
+    </div>
+
+    <div id="game-container" class="w-full max-w-2xl mx-auto hidden">
+        <h1 class="text-3xl md:text-4xl font-bold text-center text-gray-800 mb-4">フォックス・アンド・ヘンズ</h1>
+        
+        <div id="status-box" class="status-box p-4 rounded-lg shadow-md mb-4 text-center">
+            <p id="turn-indicator" class="text-xl font-semibold text-gray-700"></p>
+            <p id="hens-counter" class="text-lg text-gray-600"></p>
+        </div>
+
+        <div id="board-container" class="board-container mx-auto"></div>
+
+        <div class="text-center mt-6">
+            <button id="restart-button" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-lg shadow-lg transition-transform transform hover:scale-105">
+                モード選択に戻る
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // DOM要素の取得
+        const boardContainer = document.getElementById('board-container');
+        const turnIndicator = document.getElementById('turn-indicator');
+        const hensCounter = document.getElementById('hens-counter');
+        const restartButton = document.getElementById('restart-button');
+        const modeSelectionModal = document.getElementById('mode-selection-modal');
+        const gameContainer = document.getElementById('game-container');
+        const mainMenu = document.getElementById('main-menu');
+        const difficultyMenu = document.getElementById('difficulty-menu');
+        const foxCountMenu = document.getElementById('fox-count-menu');
+        const backToMainBtn = document.getElementById('back-to-main');
+        const backFromFoxCountBtn = document.getElementById('back-from-fox-count');
+
+        // ゲームの状態を管理する変数
+        const BOARD_SIZE = 7;
+        let boardState;
+        let isHensTurn = true;
+        let selectedPiece = null;
+        let gameOver = false;
+        let hensCount = 0;
+        let foxCount = 1;
+        let gameMode = 'pvp';
+        let cpuDifficulty = 'weak';
+        let isPlayerTurn = true;
+        
+        const FOX_WIN_THRESHOLD = 8;
+        const MINIMAX_DEPTH = 3;
+
+        // --- モード選択 ---
+        mainMenu.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON') {
+                gameMode = e.target.dataset.mode;
+                mainMenu.classList.add('hidden');
+                if (gameMode === 'pvp') {
+                    foxCountMenu.classList.remove('hidden');
+                } else {
+                    difficultyMenu.classList.remove('hidden');
+                }
+            }
+        });
+
+        difficultyMenu.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON' && e.target.dataset.difficulty) {
+                cpuDifficulty = e.target.dataset.difficulty;
+                difficultyMenu.classList.add('hidden');
+                foxCountMenu.classList.remove('hidden');
+            }
+        });
+        
+        foxCountMenu.addEventListener('click', (e) => {
+            if (e.target.tagName === 'BUTTON' && e.target.dataset.foxes) {
+                foxCount = parseInt(e.target.dataset.foxes, 10);
+                startGame();
+            }
+        });
+
+        backToMainBtn.addEventListener('click', () => {
+            difficultyMenu.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+        });
+
+        backFromFoxCountBtn.addEventListener('click', () => {
+            foxCountMenu.classList.add('hidden');
+            if (gameMode === 'pvp') {
+                mainMenu.classList.remove('hidden');
+            } else {
+                difficultyMenu.classList.remove('hidden');
+            }
+        });
+        
+        function startGame() {
+            modeSelectionModal.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            initGame();
+        }
+
+        function initGame() {
+            boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(-1));
+            hensCount = 0;
+            isHensTurn = true;
+            selectedPiece = null;
+            gameOver = false;
+
+            const validHoles = [[0,2],[0,3],[0,4],[1,2],[1,3],[1,4],[2,0],[2,1],[2,2],[2,3],[2,4],[2,5],[2,6],[3,0],[3,1],[3,2],[3,3],[3,4],[3,5],[3,6],[4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],[5,2],[5,3],[5,4],[6,2],[6,3],[6,4]];
+            validHoles.forEach(([r, c]) => { boardState[r][c] = 0; });
+            
+            const henPositions = [[0,2],[0,3],[0,4],[1,2],[1,3],[1,4],[2,0],[2,1],[2,2],[2,4],[2,5],[2,6],[3,2],[3,3],[3,4]];
+            henPositions.forEach(([r, c]) => { boardState[r][c] = 1; hensCount++; });
+
+            const foxInitialPositions = {
+                1: [[6, 3]],
+                2: [[6, 2], [6, 4]],
+                3: [[6, 2], [6, 3], [6, 4]]
+            };
+
+            if (foxInitialPositions[foxCount]) {
+                foxInitialPositions[foxCount].forEach(([r, c]) => {
+                    boardState[r][c] = 2;
+                });
+            }
+
+            renderBoard();
+            checkTurn();
+        }
+
+        function renderBoard() {
+            boardContainer.innerHTML = '';
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    const hole = document.createElement('div');
+                    hole.classList.add('hole');
+                    hole.dataset.r = r;
+                    hole.dataset.c = c;
+                    if (boardState[r][c] === -1) {
+                        hole.classList.add('invalid');
+                    } else {
+                        const pieceType = boardState[r][c];
+                        if (pieceType !== 0) {
+                            const piece = document.createElement('div');
+                            piece.classList.add('piece');
+                            piece.textContent = pieceType === 1 ? '🐔' : '🦊';
+                            hole.appendChild(piece);
+                        }
+                        hole.addEventListener('click', () => onHoleClick(r, c));
+                    }
+                    boardContainer.appendChild(hole);
+                }
+            }
+        }
+
+        function onHoleClick(r, c) {
+            if (gameOver || !isPlayerTurn) return;
+            if (selectedPiece) {
+                const validMoves = getValidMoves(selectedPiece.r, selectedPiece.c, boardState);
+                const isMoveValid = validMoves.some(move => move.to.r === r && move.to.c === c);
+                if (isMoveValid) {
+                    movePiece(selectedPiece, { r, c });
+                } else {
+                    clearHighlights();
+                    selectedPiece = null;
+                }
+            } else {
+                const pieceType = boardState[r][c];
+                if ((isHensTurn && pieceType === 1) || (!isHensTurn && pieceType === 2)) {
+                    selectPiece(r, c);
+                }
+            }
+        }
+
+        function selectPiece(r, c) {
+            clearHighlights();
+            selectedPiece = { r, c };
+            const pieceElement = boardContainer.querySelector(`[data-r='${r}'][data-c='${c}'] .piece`);
+            if(pieceElement) pieceElement.classList.add('selected');
+
+            const validMoves = getValidMoves(r, c, boardState);
+            validMoves.forEach(move => {
+                const holeElement = boardContainer.querySelector(`[data-r='${move.to.r}'][data-c='${move.to.c}']`);
+                if(holeElement) {
+                    const highlight = document.createElement('div');
+                    highlight.classList.add('valid-move');
+                    holeElement.appendChild(highlight);
+                }
+            });
+        }
+        
+        function clearHighlights() {
+            document.querySelectorAll('.selected').forEach(el => el.classList.remove('selected'));
+            document.querySelectorAll('.valid-move').forEach(el => el.remove());
+        }
+
+        function getValidMoves(r, c, currentBoard) {
+            const pieceType = currentBoard[r][c];
+            const moves = [];
+            const directions = [[-1, 0], [1, 0], [0, -1], [0, 1]];
+
+            if (pieceType === 1) {
+                directions.forEach(([dr, dc]) => {
+                    if (dr < 0) return;
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (isValidPos(nr, nc, currentBoard) && currentBoard[nr][nc] === 0) {
+                        moves.push({ from: {r,c}, to: { r: nr, c: nc }, type: 'move' });
+                    }
+                });
+            } else if (pieceType === 2) {
+                directions.forEach(([dr, dc]) => {
+                    const nr = r + dr;
+                    const nc = c + dc;
+                    if (isValidPos(nr, nc, currentBoard) && currentBoard[nr][nc] === 0) {
+                        moves.push({ from: {r,c}, to: { r: nr, c: nc }, type: 'move' });
+                    }
+                    const jr = r + dr * 2;
+                    const jc = c + dc * 2;
+                    if (isValidPos(jr, jc, currentBoard) && currentBoard[jr][jc] === 0 && currentBoard[nr][nc] === 1) {
+                        moves.push({ from: {r,c}, to: { r: jr, c: jc }, type: 'jump' });
+                    }
+                });
+            }
+            return moves;
+        }
+        
+        function isValidPos(r, c, currentBoard) {
+            return r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && currentBoard[r][c] !== -1;
+        }
+
+        function movePiece(from, to) {
+            const pieceType = boardState[from.r][from.c];
+            boardState[to.r][to.c] = pieceType;
+            boardState[from.r][from.c] = 0;
+            
+            if (Math.abs(from.r - to.r) === 2 || Math.abs(from.c - to.c) === 2) {
+                const capturedR = from.r + (to.r - from.r) / 2;
+                const capturedC = from.c + (to.c - from.c) / 2;
+                boardState[capturedR][capturedC] = 0;
+                hensCount--;
+            }
+            
+            selectedPiece = null;
+            clearHighlights();
+            renderBoard();
+            
+            if (checkWinCondition()) return;
+            
+            isHensTurn = !isHensTurn;
+            checkTurn();
+        }
+
+        function checkTurn() {
+            updateStatus();
+            if (gameOver) return;
+
+            isPlayerTurn = (gameMode === 'pvp') ||
+                           (gameMode === 'playerAsHens' && isHensTurn) ||
+                           (gameMode === 'playerAsFox' && !isHensTurn);
+
+            if (!isPlayerTurn) {
+                setTimeout(makeCpuMove, 500);
+            } else {
+                 if(isPlayerTrapped(boardState, isHensTurn)){
+                    gameOver = true;
+                    updateStatus(true);
+                }
+            }
+        }
+        
+        function makeCpuMove() {
+            if (gameOver) return;
+            let bestMove = null;
+
+            if (cpuDifficulty === 'strong') {
+                bestMove = getBestMoveMinimax();
+            } else {
+                 if (!isHensTurn) {
+                    const allMoves = getAllPossibleMoves(boardState, false);
+                    const jumpMoves = allMoves.filter(m => m.type === 'jump');
+                    if (jumpMoves.length > 0) bestMove = jumpMoves[Math.floor(Math.random() * jumpMoves.length)];
+                    else if (allMoves.length > 0) bestMove = allMoves[Math.floor(Math.random() * allMoves.length)];
+                } else {
+                    const allMoves = getAllPossibleMoves(boardState, true);
+                    if (allMoves.length > 0) bestMove = allMoves[Math.floor(Math.random() * allMoves.length)];
+                }
+            }
+            
+            if (bestMove) {
+                movePiece(bestMove.from, bestMove.to);
+            } else {
+                gameOver = true;
+                updateStatus(true);
+            }
+        }
+
+        function getAllPossibleMoves(currentBoard, forHens) {
+            const moves = [];
+            const pieceType = forHens ? 1 : 2;
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (currentBoard[r][c] === pieceType) {
+                        moves.push(...getValidMoves(r, c, currentBoard));
+                    }
+                }
+            }
+            return moves;
+        }
+        
+        function isPlayerTrapped(currentBoard, forHens) {
+            return getAllPossibleMoves(currentBoard, forHens).length === 0;
+        }
+
+        function getBestMoveMinimax() {
+            let bestScore = isHensTurn ? Infinity : -Infinity;
+            let bestMove = null;
+            const moves = getAllPossibleMoves(boardState, isHensTurn);
+
+            for (const move of moves) {
+                const { newBoard, newHensCount } = simulateMove(boardState, move, hensCount);
+                const score = minimax(newBoard, newHensCount, MINIMAX_DEPTH, -Infinity, Infinity, !isHensTurn);
+
+                if (isHensTurn) {
+                    if (score < bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                } else {
+                    if (score > bestScore) {
+                        bestScore = score;
+                        bestMove = move;
+                    }
+                }
+            }
+            return bestMove || moves[0];
+        }
+
+        function minimax(currentBoard, currentHensCount, depth, alpha, beta, maximizingPlayer) {
+            if (depth === 0 || currentHensCount <= FOX_WIN_THRESHOLD || isPlayerTrapped(currentBoard, false) || isPlayerTrapped(currentBoard, true)) {
+                return evaluateBoard(currentBoard, currentHensCount);
+            }
+
+            const moves = getAllPossibleMoves(currentBoard, !maximizingPlayer);
+
+            if (maximizingPlayer) {
+                let maxEval = -Infinity;
+                for (const move of moves) {
+                    const { newBoard, newHensCount } = simulateMove(currentBoard, move, currentHensCount);
+                    const evaluation = minimax(newBoard, newHensCount, depth - 1, alpha, beta, false);
+                    maxEval = Math.max(maxEval, evaluation);
+                    alpha = Math.max(alpha, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return maxEval;
+            } else {
+                let minEval = Infinity;
+                for (const move of moves) {
+                    const { newBoard, newHensCount } = simulateMove(currentBoard, move, currentHensCount);
+                    const evaluation = minimax(newBoard, newHensCount, depth - 1, alpha, beta, true);
+                    minEval = Math.min(minEval, evaluation);
+                    beta = Math.min(beta, evaluation);
+                    if (beta <= alpha) break;
+                }
+                return minEval;
+            }
+        }
+        
+        function evaluateBoard(currentBoard, currentHensCount) {
+            if (currentHensCount <= FOX_WIN_THRESHOLD) return 10000;
+            if (isPlayerTrapped(currentBoard, false)) return -10000;
+            if (isPlayerTrapped(currentBoard, true)) return 10000;
+
+            let score = (15 - currentHensCount) * 200;
+            const foxPositions = [];
+            const henPositions = [];
+            for (let r = 0; r < BOARD_SIZE; r++) {
+                for (let c = 0; c < BOARD_SIZE; c++) {
+                    if (currentBoard[r][c] === 2) foxPositions.push({r, c});
+                    if (currentBoard[r][c] === 1) henPositions.push({r, c});
+                }
+            }
+            
+            if (foxPositions.length === 0) return -10000;
+
+            let totalFoxMoves = 0;
+            foxPositions.forEach(foxPos => {
+                totalFoxMoves += getValidMoves(foxPos.r, foxPos.c, currentBoard).length;
+            });
+            score += totalFoxMoves * 10;
+
+            let totalDistance = 0;
+            henPositions.forEach(henPos => {
+                let minDistanceToFox = Infinity;
+                foxPositions.forEach(foxPos => {
+                    const dist = Math.abs(henPos.r - foxPos.r) + Math.abs(henPos.c - foxPos.c);
+                    if (dist < minDistanceToFox) minDistanceToFox = dist;
+                });
+                totalDistance += minDistanceToFox;
+            });
+            score -= totalDistance;
+
+            return score;
+        }
+
+        function simulateMove(board, move, currentHensCount) {
+            const newBoard = board.map(row => [...row]);
+            const pieceType = newBoard[move.from.r][move.from.c];
+            newBoard[move.to.r][move.to.c] = pieceType;
+            newBoard[move.from.r][move.from.c] = 0;
+            let newHensCount = currentHensCount;
+
+            if (move.type === 'jump') {
+                const capturedR = move.from.r + (move.to.r - move.from.r) / 2;
+                const capturedC = move.from.c + (move.to.c - move.from.c) / 2;
+                newBoard[capturedR][capturedC] = 0;
+                newHensCount--;
+            }
+            return { newBoard, newHensCount };
+        }
+
+        function checkWinCondition() {
+            if (hensCount <= FOX_WIN_THRESHOLD) {
+                turnIndicator.textContent = '🦊 フォックスの勝利！ 🎉';
+                hensCounter.textContent = `ヘンが${FOX_WIN_THRESHOLD}羽以下になりました。`;
+                gameOver = true;
+                return true;
+            }
+            return false;
+        }
+
+        function updateStatus(playerIsTrapped = false) {
+            if (gameOver) {
+                 if(playerIsTrapped){
+                    const winner = isHensTurn ? 'フォックス' : 'ヘンズ';
+                    const loser = isHensTurn ? 'ヘンズ' : 'フォックス';
+                    turnIndicator.textContent = `🎉 ${winner}の勝利！`;
+                    hensCounter.textContent = `${loser}は動けません。`;
+                 }
+                 return;
+            }
+            
+            if (gameMode !== 'pvp' && !isPlayerTurn) {
+                turnIndicator.textContent = 'CPUが考え中... 🤔';
+            } else {
+                let turnText = isHensTurn ? '🐔 ヘンズのターン' : '🦊 フォックスのターン';
+                if (gameMode !== 'pvp') {
+                    turnText = isPlayerTurn ? `あなたのターン (${isHensTurn ? '🐔' : '🦊'})` : turnText;
+                }
+                turnIndicator.textContent = turnText;
+            }
+            hensCounter.textContent = `残りのヘンズ: ${hensCount} 羽`;
+        }
+
+        restartButton.addEventListener('click', () => {
+            gameContainer.classList.add('hidden');
+            difficultyMenu.classList.add('hidden');
+            foxCountMenu.classList.add('hidden');
+            mainMenu.classList.remove('hidden');
+            modeSelectionModal.classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
