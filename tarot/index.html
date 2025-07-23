@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>タロットリーディング</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Noto+Serif+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', 'Noto Serif JP', serif;
+        }
+        .card-container {
+            perspective: 1000px;
+        }
+        .card {
+            width: 150px;
+            height: 262.5px;
+            position: relative;
+            transform-style: preserve-3d;
+            transition: transform 0.8s;
+            cursor: pointer;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card.reversed-draw {
+            transform: rotateZ(180deg);
+        }
+        .card.flipped.reversed-draw {
+            transform: rotateY(180deg) rotateZ(180deg);
+        }
+        .card-face {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+            border-radius: 12px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+        .card-back {
+            background-color: #4a044e;
+            background-image: radial-gradient(#faf5ff 1px, transparent 1px),
+            radial-gradient(#faf5ff 1px, #4a044e 1px);
+            background-size: 20px 20px;
+            background-position: 0 0, 10px 10px;
+            border: 4px solid #a855f7;
+        }
+        .card-front {
+            transform: rotateY(180deg);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 8px;
+            font-size: 14px;
+            background-size: cover;
+            background-position: center;
+            color: white;
+        }
+        .card-front-content {
+            background-color: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-end;
+        }
+        .spread-btn.active {
+            background-color: #a855f7;
+            color: white;
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.7);
+        }
+        .diamond-cross-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 1rem;
+            width: 550px;
+            height: 900px;
+        }
+        @media (max-width: 600px) {
+            .diamond-cross-grid {
+                width: 100%;
+                height: auto;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-5xl">
+        <header class="text-center my-6 md:my-8">
+            <h1 class="text-4xl md:text-5xl font-bold font-serif text-purple-300" style="font-family: 'Noto Serif JP', serif;">タロットリーディング</h1>
+            <p class="text-gray-400 mt-2">あなたの運命を占う</p>
+        </header>
+
+        <main>
+            <!-- Spread Selection -->
+            <section id="spread-selection" class="text-center mb-8">
+                <h2 class="text-xl md:text-2xl mb-4 text-purple-200" style="font-family: 'Noto Serif JP', serif;">占術（スプレッド）を選択してください</h2>
+                <div class="flex flex-wrap justify-center gap-3 md:gap-4">
+                    <button data-spread="one-oracle" class="spread-btn px-4 py-2 md:px-6 md:py-3 bg-gray-800 border border-purple-500 rounded-lg hover:bg-purple-700 transition-all duration-300">ワンオラクル</button>
+                    <button data-spread="two-oracles" class="spread-btn px-4 py-2 md:px-6 md:py-3 bg-gray-800 border border-purple-500 rounded-lg hover:bg-purple-700 transition-all duration-300">ツーオラクル</button>
+                    <button data-spread="three-cards" class="spread-btn px-4 py-2 md:px-6 md:py-3 bg-gray-800 border border-purple-500 rounded-lg hover:bg-purple-700 transition-all duration-300">スリーカード</button>
+                    <button data-spread="diamond-cross" class="spread-btn px-4 py-2 md:px-6 md:py-3 bg-gray-800 border border-purple-500 rounded-lg hover:bg-purple-700 transition-all duration-300">ダイヤモンドクロス</button>
+                </div>
+            </section>
+
+            <!-- Action Button -->
+            <section id="action-section" class="text-center mb-8">
+                <button id="draw-button" class="px-8 py-4 bg-purple-600 text-white font-bold rounded-lg shadow-lg hover:bg-purple-500 transition-transform transform hover:scale-105 disabled:bg-gray-600 disabled:cursor-not-allowed disabled:scale-100">シャッフルしてカードを引く</button>
+            </section>
+
+            <!-- Card Display Area -->
+            <section id="card-display-area" class="flex flex-wrap justify-center items-start gap-4 md:gap-8 min-h-[350px]">
+                <!-- Cards will be dynamically inserted here -->
+            </section>
+
+            <!-- Interpretation Modal -->
+            <div id="interpretation-modal" class="fixed inset-0 bg-black bg-opacity-75 flex justify-center items-center p-4 hidden z-50">
+                <div class="bg-gray-800 border border-purple-400 rounded-lg shadow-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                    <h3 id="modal-card-name" class="text-2xl font-bold text-purple-300 mb-2"></h3>
+                    <p id="modal-card-position" class="text-lg text-purple-200 mb-4"></p>
+                    <div id="modal-card-image" class="w-48 h-auto mx-auto mb-4 rounded-md"></div>
+                    <p class="text-yellow-400 font-bold mb-2" id="modal-orientation"></p>
+                    <p id="modal-card-meaning" class="text-gray-300"></p>
+                    <button id="close-modal" class="mt-6 w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-500 transition">閉じる</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- DATA: Tarot Cards and Spreads ---
+            const tarotDeck = [
+                // Major Arcana with Image URLs
+                { name: "The Fool", jp_name: "愚者", meaning_up: "自由、無邪気、始まり、無限の可能性", meaning_rev: "無謀、愚かさ、軽率、リスク", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/9/90/RWS_Tarot_00_Fool.jpg" },
+                { name: "The Magician", jp_name: "魔術師", meaning_up: "意志、創造、顕現、力", meaning_rev: "操作、才能の悪用、詐欺", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/de/RWS_Tarot_01_Magician.jpg" },
+                { name: "The High Priestess", jp_name: "女教皇", meaning_up: "直感、無意識、神秘、知恵", meaning_rev: "秘密、隠された事柄、表面的な知識", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/88/RWS_Tarot_02_High_Priestess.jpg" },
+                { name: "The Empress", jp_name: "女帝", meaning_up: "豊穣、母性、美、自然", meaning_rev: "過保護、創造性の停滞、依存", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/d2/RWS_Tarot_03_Empress.jpg" },
+                { name: "The Emperor", jp_name: "皇帝", meaning_up: "権威、構造、父性、支配", meaning_rev: "独裁、硬直、支配的", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/c/c3/RWS_Tarot_04_Emperor.jpg" },
+                { name: "The Hierophant", jp_name: "教皇", meaning_up: "伝統、信仰、制度、道徳", meaning_rev: "束縛、既成概念、不信", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/8/8d/RWS_Tarot_05_Hierophant.jpg" },
+                { name: "The Lovers", jp_name: "恋人", meaning_up: "愛、調和、関係、選択", meaning_rev: "不和、誤った選択、不均衡", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/db/RWS_Tarot_06_Lovers.jpg" },
+                { name: "The Chariot", jp_name: "戦車", meaning_up: "勝利、意志力、前進、自己主張", meaning_rev: "暴走、方向性の喪失、敗北", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/9/9b/RWS_Tarot_07_Chariot.jpg" },
+                { name: "Strength", jp_name: "力", meaning_up: "勇気、忍耐、内なる力、思いやり", meaning_rev: "自己不信、弱さ、抑制の欠如", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f5/RWS_Tarot_08_Strength.jpg" },
+                { name: "The Hermit", jp_name: "隠者", meaning_up: "内省、探求、導き、孤独", meaning_rev: "孤立、引きこもり、迷走", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/4/4d/RWS_Tarot_09_Hermit.jpg" },
+                { name: "Wheel of Fortune", jp_name: "運命の輪", meaning_up: "運命、転機、幸運、変化", meaning_rev: "不運、停滞、予期せぬ変化", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/3/3c/RWS_Tarot_10_Wheel_of_Fortune.jpg" },
+                { name: "Justice", jp_name: "正義", meaning_up: "公平、真実、法、因果応報", meaning_rev: "不公平、偏見、不正", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/e/e0/RWS_Tarot_11_Justice.jpg" },
+                { name: "The Hanged Man", jp_name: "吊るされた男", meaning_up: "試練、自己犠牲、新たな視点", meaning_rev: "停滞、無駄な犠牲、行き詰まり", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/2/2b/RWS_Tarot_12_Hanged_Man.jpg" },
+                { name: "Death", jp_name: "死神", meaning_up: "終わり、変容、移行、解放", meaning_rev: "変化への抵抗、停滞、恐怖", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/d7/RWS_Tarot_13_Death.jpg" },
+                { name: "Temperance", jp_name: "節制", meaning_up: "均衡、調和、忍耐、統合", meaning_rev: "不均衡、過剰、不和", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/f/f8/RWS_Tarot_14_Temperance.jpg" },
+                { name: "The Devil", jp_name: "悪魔", meaning_up: "束縛、誘惑、物質主義、依存", meaning_rev: "解放、束縛からの脱却、自制", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/55/RWS_Tarot_15_Devil.jpg" },
+                { name: "The Tower", jp_name: "塔", meaning_up: "突然の変化、崩壊、啓示", meaning_rev: "災害の回避、変化への恐怖、遅延", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/5/53/RWS_Tarot_16_Tower.jpg" },
+                { name: "The Star", jp_name: "星", meaning_up: "希望、霊感、静寂、癒し", meaning_rev: "絶望、幻滅、信頼の喪失", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/db/RWS_Tarot_17_Star.jpg" },
+                { name: "The Moon", jp_name: "月", meaning_up: "不安、幻想、無意識、欺瞞", meaning_rev: "混乱の解消、真実の露見", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/7/7f/RWS_Tarot_18_Moon.jpg" },
+                { name: "The Sun", jp_name: "太陽", meaning_up: "成功、活力、喜び、明晰", meaning_rev: "一時的な落ち込み、自信喪失", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/1/17/RWS_Tarot_19_Sun.jpg" },
+                { name: "Judgement", jp_name: "審判", meaning_up: "復活、決断、贖罪、目覚め", meaning_rev: "自己批判、後悔、機会損失", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/d/dd/RWS_Tarot_20_Judgement.jpg" },
+                { name: "The World", jp_name: "世界", meaning_up: "完成、統合、達成、旅立ち", meaning_rev: "未完成、停滞、閉塞感", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/f/ff/RWS_Tarot_21_World.jpg" },
+            ];
+
+            const spreads = {
+                'one-oracle': { count: 1, positions: ["あなたの現状、またはアドバイス"] },
+                'two-oracles': { count: 2, positions: ["現状・問題点", "アドバイス・解決策"] },
+                'three-cards': { count: 3, positions: ["過去", "現在", "未来"] },
+                'diamond-cross': { count: 5, positions: ["核心となる問題", "過去の原因・影響", "未来の可能性", "取るべき行動・アドバイス", "最終的な結果"] }
+            };
+
+            // --- STATE ---
+            let selectedSpread = null;
+            let drawnCards = [];
+
+            // --- DOM ELEMENTS ---
+            const spreadButtons = document.querySelectorAll('.spread-btn');
+            const drawButton = document.getElementById('draw-button');
+            const cardDisplayArea = document.getElementById('card-display-area');
+            const modal = document.getElementById('interpretation-modal');
+            const closeModalButton = document.getElementById('close-modal');
+
+            // --- INITIALIZE ---
+            drawButton.disabled = true;
+
+            // --- EVENT LISTENERS ---
+            spreadButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    selectedSpread = button.dataset.spread;
+                    spreadButtons.forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    drawButton.disabled = false;
+                    cardDisplayArea.innerHTML = `<p class="text-gray-400">「シャッフルしてカードを引く」ボタンを押してください。</p>`;
+                });
+            });
+
+            drawButton.addEventListener('click', handleDraw);
+            closeModalButton.addEventListener('click', () => modal.classList.add('hidden'));
+            modal.addEventListener('click', (e) => {
+                if(e.target === modal) {
+                    modal.classList.add('hidden');
+                }
+            });
+
+            // --- FUNCTIONS ---
+            function handleDraw() {
+                if (!selectedSpread) return;
+
+                const spreadInfo = spreads[selectedSpread];
+                
+                // 1. Shuffle Deck
+                const shuffledDeck = [...tarotDeck].sort(() => Math.random() - 0.5);
+
+                // 2. Draw Cards
+                drawnCards = [];
+                for (let i = 0; i < spreadInfo.count; i++) {
+                    const card = shuffledDeck.pop();
+                    drawnCards.push({
+                        ...card,
+                        isReversed: Math.random() < 0.5, // 50% chance of being reversed
+                        position: spreadInfo.positions[i]
+                    });
+                }
+                
+                // 3. Display Cards (Face Down)
+                displayInitialCards(drawnCards);
+                
+                // 4. Flip cards with a delay
+                setTimeout(() => {
+                    document.querySelectorAll('.card').forEach((cardEl, index) => {
+                        setTimeout(() => {
+                            cardEl.classList.add('flipped');
+                        }, index * 400); // Stagger the flip animation
+                    });
+                }, 500);
+            }
+
+            function displayInitialCards(cards) {
+                cardDisplayArea.innerHTML = ''; // Clear previous cards
+                
+                const layoutWrapper = document.createElement('div');
+
+                if (selectedSpread === 'diamond-cross') {
+                    layoutWrapper.className = 'diamond-cross-grid place-items-center';
+                    // Create empty cells for grid layout
+                    const gridPositions = {
+                        0: 'col-start-2 row-start-1', // Top
+                        1: 'col-start-1 row-start-2', // Left
+                        2: 'col-start-3 row-start-2', // Right
+                        3: 'col-start-2 row-start-3', // Bottom
+                        4: 'col-start-2 row-start-2'  // Center
+                    };
+
+                    for(let i=0; i<9; i++) {
+                        const cell = document.createElement('div');
+                        const cssClass = `col-start-${(i%3)+1} row-start-${Math.floor(i/3)+1}`;
+                        const originalCardIndex = Object.keys(gridPositions).find(key => gridPositions[key] === cssClass);
+                        
+                        if(originalCardIndex !== undefined) {
+                            const cardData = cards.find(c => c.position === spreads[selectedSpread].positions[originalCardIndex]);
+                            if (cardData) {
+                                const cardEl = createCardElement(cardData);
+                                cell.appendChild(cardEl);
+                            }
+                        }
+                        layoutWrapper.appendChild(cell);
+                    }
+
+                } else {
+                    layoutWrapper.className = 'flex flex-wrap justify-center items-start gap-4 md:gap-8';
+                    cards.forEach(cardData => {
+                        const cardEl = createCardElement(cardData);
+                        layoutWrapper.appendChild(cardEl);
+                    });
+                }
+                
+                cardDisplayArea.appendChild(layoutWrapper);
+            }
+
+            function createCardElement(cardData) {
+                const cardWrapper = document.createElement('div');
+                cardWrapper.className = 'flex flex-col items-center gap-2';
+
+                const cardPosition = document.createElement('p');
+                cardPosition.className = 'text-center text-purple-200 font-semibold h-12';
+                cardPosition.textContent = cardData.position;
+
+                const cardContainer = document.createElement('div');
+                cardContainer.className = 'card-container';
+                
+                const cardEl = document.createElement('div');
+                cardEl.className = 'card';
+                if (cardData.isReversed) {
+                    cardEl.classList.add('reversed-draw');
+                }
+
+                const cardBack = document.createElement('div');
+                cardBack.className = 'card-face card-back';
+
+                const cardFront = document.createElement('div');
+                cardFront.className = 'card-face card-front';
+                // Use the new imageUrl property
+                cardFront.style.backgroundImage = `url('${cardData.imageUrl}')`;
+
+                const cardFrontContent = document.createElement('div');
+                cardFrontContent.className = 'card-front-content';
+                
+                const cardName = document.createElement('h4');
+                cardName.className = 'font-bold';
+                cardName.textContent = cardData.jp_name;
+                
+                const cardOrientation = document.createElement('p');
+                cardOrientation.className = 'text-sm text-yellow-300';
+                cardOrientation.textContent = cardData.isReversed ? '逆位置' : '正位置';
+
+                cardFrontContent.appendChild(cardName);
+                cardFrontContent.appendChild(cardOrientation);
+                // We add the content overlay to the front of the card
+                cardFront.appendChild(cardFrontContent);
+
+                cardEl.appendChild(cardBack);
+                cardEl.appendChild(cardFront);
+                cardContainer.appendChild(cardEl);
+                
+                cardWrapper.appendChild(cardPosition);
+                cardWrapper.appendChild(cardContainer);
+
+                cardEl.addEventListener('click', () => {
+                    if (cardEl.classList.contains('flipped')) {
+                        showInterpretation(cardData);
+                    }
+                });
+
+                return cardWrapper;
+            }
+
+            function showInterpretation(cardData) {
+                document.getElementById('modal-card-name').textContent = cardData.jp_name;
+                document.getElementById('modal-card-position').textContent = cardData.position;
+                document.getElementById('modal-orientation').textContent = cardData.isReversed ? '逆位置' : '正位置';
+                document.getElementById('modal-card-meaning').textContent = cardData.isReversed ? cardData.meaning_rev : cardData.meaning_up;
+                
+                const modalImage = document.getElementById('modal-card-image');
+                modalImage.innerHTML = '';
+                const img = document.createElement('img');
+                // Use the new imageUrl property for the modal as well
+                img.src = cardData.imageUrl;
+                img.alt = cardData.jp_name;
+                img.className = 'rounded-md w-full h-full object-cover border-2 border-purple-300';
+                // Add a fallback image in case the primary one fails to load
+                img.onerror = function() { 
+                    this.onerror=null; 
+                    this.src='https://placehold.co/250x428/1e1b4b/ffffff?text=Image+Not+Found';
+                };
+
+                if (cardData.isReversed) {
+                    img.style.transform = 'rotate(180deg)';
+                } else {
+                    img.style.transform = 'none';
+                }
+                modalImage.appendChild(img);
+
+                modal.classList.remove('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
