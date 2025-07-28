@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>花札こいこい</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            background-color: #1a2a1f;
+            color: #f0f0f0;
+            user-select: none;
+        }
+        .game-board {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            grid-template-areas:
+                "opponent"
+                "field"
+                "player";
+            gap: 1rem;
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem;
+            min-height: 100vh;
+        }
+        .player-area, .opponent-area {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+            padding: 0.5rem;
+            border: 2px solid transparent;
+            border-radius: 1rem;
+            transition: all 0.3s ease-in-out;
+        }
+        /* Turn Indicator Style */
+        .active-turn {
+            box-shadow: 0 0 15px 5px rgba(253, 224, 71, 0.5);
+            border-color: #fde047;
+        }
+        .opponent-area { grid-area: opponent; }
+        .field-area {
+            grid-area: field;
+            background-color: rgba(0, 0, 0, 0.3);
+            border-radius: 1rem;
+            padding: 1rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            min-height: 250px;
+        }
+        .player-area { grid-area: player; }
+        .hand {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+        .card {
+            width: 60px;
+            height: 90px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            border: 2px solid #333;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 4px;
+            text-align: center;
+            font-size: 10px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        /* Card types styling */
+        .card.type-hikari { background-color: #fde047; color: #1f2937; border-color: #facc15; }
+        .card.type-tane { background-color: #2dd4bf; color: #1f2937; border-color: #14b8a6;}
+        .card.type-tanzaku { background-color: #f87171; color: #1f2937; border-color: #ef4444;}
+        .card.type-kasu { background-color: #f9fafb; color: #1f2937; border-color: #d1d5db;}
+        
+        .player-area .hand .card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 6px 12px rgba(255,255,255,0.2);
+        }
+        .card.selected {
+            border-color: #67e8f9; /* cyan-300 */
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 4px 8px rgba(103, 232, 249, 0.4);
+        }
+        .card.opponent-card {
+            background: #5a1d2d url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Hanafuda_back.svg/120px-Hanafuda_back.svg.png') center/cover;
+            color: transparent;
+        }
+        .captured-area {
+            min-height: 100px;
+            background-color: rgba(0, 0, 0, 0.2);
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        .captured-area .card {
+            width: 40px;
+            height: 60px;
+            cursor: default;
+            font-size: 8px;
+        }
+        .deck-area {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        .deck {
+            width: 60px;
+            height: 90px;
+            background: #5a1d2d url('https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/Hanafuda_back.svg/120px-Hanafuda_back.svg.png') center/cover;
+            border-radius: 6px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-weight: bold;
+            color: white;
+            cursor: pointer;
+        }
+        .message-box, .yaku-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+        .message-box-content, .yaku-modal-content {
+            background-color: #1f2937;
+            color: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            text-align: center;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .yaku-modal-content {
+             width: 450px;
+        }
+        .yaku-list {
+            overflow-y: auto;
+            padding-right: 1rem;
+            margin-bottom: 1rem;
+        }
+        .yaku-item {
+            display: flex;
+            flex-direction: column;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid #4b5563;
+        }
+        .yaku-item:last-child {
+            border-bottom: none;
+        }
+        .yaku-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        .yaku-name {
+            text-align: left;
+        }
+        .yaku-points {
+            font-weight: bold;
+            white-space: nowrap;
+            padding-left: 1rem;
+        }
+        .yaku-cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 8px;
+        }
+        .yaku-display {
+            background-color: rgba(0,0,0,0.4);
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            min-height: 50px;
+        }
+        .action-button {
+             background-color: #fde047;
+             color: #1f2937;
+             font-weight: bold;
+             padding: 0.5rem 1rem;
+             border-radius: 0.5rem;
+             cursor: pointer;
+             transition: background-color 0.2s;
+        }
+        .action-button:hover {
+            background-color: #facc15;
+        }
+    </style>
+</head>
+<body class="bg-green-900">
+
+    <div id="game-container" class="game-board">
+        <!-- Opponent's Area -->
+        <div id="opponent-area-container" class="opponent-area">
+            <div class="flex justify-between items-center px-4">
+                <h2 class="text-xl font-bold">相手</h2>
+                <div class="text-lg">合計: <span id="opponent-total-score">0</span>点</div>
+            </div>
+            <div class="hand" id="opponent-hand"></div>
+            <div class="captured-area" id="opponent-captured"></div>
+            <div class="yaku-display" id="opponent-yaku"></div>
+        </div>
+
+        <!-- Field Area -->
+        <div class="field-area" id="field"></div>
+
+        <!-- Player's Area -->
+        <div id="player-area-container" class="player-area">
+            <div class="yaku-display" id="player-yaku"></div>
+            <div class="captured-area" id="player-captured"></div>
+            <div class="hand" id="player-hand"></div>
+            <div class="flex justify-between items-center px-4">
+                <h2 class="text-xl font-bold">あなた</h2>
+                <div class="text-lg">合計: <span id="player-total-score">0</span>点</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Deck and Controls -->
+    <div class="deck-area">
+        <div class="deck" id="deck"></div>
+        <button id="yaku-list-button" class="action-button mt-4">役一覧</button>
+    </div>
+
+    <!-- Message Box / Modal -->
+    <div id="message-box" class="message-box hidden">
+        <div class="message-box-content">
+            <h3 id="message-title" class="text-2xl font-bold mb-4"></h3>
+            <p id="message-text" class="mb-6"></p>
+            <div id="message-buttons" class="flex justify-center gap-4"></div>
+        </div>
+    </div>
+    
+    <!-- Yaku List Modal -->
+    <div id="yaku-modal" class="yaku-modal hidden">
+        <div class="yaku-modal-content">
+            <h3 class="text-2xl font-bold mb-4">役一覧</h3>
+            <div id="yaku-list-content" class="yaku-list"></div>
+            <button id="close-yaku-modal-button" class="action-button self-center mt-4">閉じる</button>
+        </div>
+    </div>
+
+
+<script>
+// --- Game Setup and Data ---
+
+const CARDS = [
+    // 1月 (睦月 - 松)
+    { id: 1, month: 1, type: 'hikari', name: '松に鶴', value: 20 },
+    { id: 2, month: 1, type: 'tanzaku', name: '松に赤短', value: 5 },
+    { id: 3, month: 1, type: 'kasu', name: '松', value: 1 },
+    { id: 4, month: 1, type: 'kasu', name: '松', value: 1 },
+    // 2月 (如月 - 梅)
+    { id: 5, month: 2, type: 'tane', name: '梅に鶯', value: 10 },
+    { id: 6, month: 2, type: 'tanzaku', name: '梅に赤短', value: 5 },
+    { id: 7, month: 2, type: 'kasu', name: '梅', value: 1 },
+    { id: 8, month: 2, type: 'kasu', name: '梅', value: 1 },
+    // 3月 (弥生 - 桜)
+    { id: 9, month: 3, type: 'hikari', name: '桜に幕', value: 20 },
+    { id: 10, month: 3, type: 'tanzaku', name: '桜に赤短', value: 5 },
+    { id: 11, month: 3, type: 'kasu', name: '桜', value: 1 },
+    { id: 12, month: 3, type: 'kasu', name: '桜', value: 1 },
+    // 4月 (卯月 - 藤)
+    { id: 13, month: 4, type: 'tane', name: '藤に不如帰', value: 10 },
+    { id: 14, month: 4, type: 'tanzaku', name: '藤に短冊', value: 5 },
+    { id: 15, month: 4, type: 'kasu', name: '藤', value: 1 },
+    { id: 16, month: 4, type: 'kasu', name: '藤', value: 1 },
+    // 5月 (皐月 - 菖蒲)
+    { id: 17, month: 5, type: 'tane', name: '菖蒲に八橋', value: 10 },
+    { id: 18, month: 5, type: 'tanzaku', name: '菖蒲に短冊', value: 5 },
+    { id: 19, month: 5, type: 'kasu', name: '菖蒲', value: 1 },
+    { id: 20, month: 5, type: 'kasu', name: '菖蒲', value: 1 },
+    // 6月 (水無月 - 牡丹)
+    { id: 21, month: 6, type: 'tane', name: '牡丹に蝶', value: 10 },
+    { id: 22, month: 6, type: 'tanzaku', name: '牡丹に青短', value: 5 },
+    { id: 23, month: 6, type: 'kasu', name: '牡丹', value: 1 },
+    { id: 24, month: 6, type: 'kasu', name: '牡丹', value: 1 },
+    // 7月 (文月 - 萩)
+    { id: 25, month: 7, type: 'tane', name: '萩に猪', value: 10 },
+    { id: 26, month: 7, type: 'tanzaku', name: '萩に短冊', value: 5 },
+    { id: 27, month: 7, type: 'kasu', name: '萩', value: 1 },
+    { id: 28, month: 7, type: 'kasu', name: '萩', value: 1 },
+    // 8月 (葉月 - 芒)
+    { id: 29, month: 8, type: 'hikari', name: '芒に月', value: 20 },
+    { id: 30, month: 8, type: 'tane', name: '芒に雁', value: 10 },
+    { id: 31, month: 8, type: 'kasu', name: '芒', value: 1 },
+    { id: 32, month: 8, type: 'kasu', name: '芒', value: 1 },
+    // 9月 (長月 - 菊)
+    { id: 33, month: 9, type: 'tane', name: '菊に盃', value: 10 },
+    { id: 34, month: 9, type: 'tanzaku', name: '菊に青短', value: 5 },
+    { id: 35, month: 9, type: 'kasu', name: '菊', value: 1 },
+    { id: 36, month: 9, type: 'kasu', name: '菊', value: 1 },
+    // 10月 (神無月 - 紅葉)
+    { id: 37, month: 10, type: 'tane', name: '紅葉に鹿', value: 10 },
+    { id: 38, month: 10, type: 'tanzaku', name: '紅葉に青短', value: 5 },
+    { id: 39, month: 10, type: 'kasu', name: '紅葉', value: 1 },
+    { id: 40, month: 10, type: 'kasu', name: '紅葉', value: 1 },
+    // 11月 (霜月 - 柳)
+    { id: 41, month: 11, type: 'hikari', name: '柳に小野道風', value: 20 },
+    { id: 42, month: 11, type: 'tane', name: '柳に燕', value: 10 },
+    { id: 43, month: 11, type: 'tanzaku', name: '柳に短冊', value: 5 },
+    { id: 44, month: 11, type: 'kasu', name: '柳', value: 1 },
+    // 12月 (師走 - 桐)
+    { id: 45, month: 12, type: 'hikari', name: '桐に鳳凰', value: 20 },
+    { id: 46, month: 12, type: 'kasu', name: '桐', value: 1 },
+    { id: 47, month: 12, type: 'kasu', name: '桐', value: 1 },
+    { id: 48, month: 12, type: 'kasu', name: '桐', value: 1 },
+];
+
+const YAKU = {
+    goko: { name: '五光', points: 10, card_ids: [1, 9, 29, 41, 45], desc: "光札 5枚", condition: (cards) => cards.filter(c => c.type === 'hikari').length === 5 },
+    shiko: { name: '四光', points: 8, card_ids: [1, 9, 29, 45], desc: "光札 4枚 (柳を除く)", condition: (cards) => cards.filter(c => c.type === 'hikari' && c.month !== 11).length === 4 },
+    ame_shiko: { name: '雨四光', points: 7, card_ids: [1, 9, 29, 41], desc: "光札 4枚 (柳を含む)", condition: (cards) => {
+        const hikari = cards.filter(c => c.type === 'hikari');
+        return hikari.length === 4 && hikari.some(c => c.month === 11);
+    }},
+    sanko: { name: '三光', points: 6, card_ids: [1, 9, 29], desc: "光札 3枚 (柳を除く)", condition: (cards) => cards.filter(c => c.type === 'hikari' && c.month !== 11).length === 3 },
+    ino_shika_cho: { name: '猪鹿蝶', points: 5, card_ids: [21, 25, 37], desc: "牡丹に蝶, 萩に猪, 紅葉に鹿", condition: (cards) => {
+        return cards.some(c => c.id === 25) && cards.some(c => c.id === 37) && cards.some(c => c.id === 21);
+    }},
+    akatan: { name: '赤短', points: 5, card_ids: [2, 6, 10], desc: "松・梅・桜の赤短冊", condition: (cards) => {
+        return cards.filter(c => c.id === 2 || c.id === 6 || c.id === 10).length === 3;
+    }},
+    aotan: { name: '青短', points: 5, card_ids: [22, 34, 38], desc: "牡丹・菊・紅葉の青短冊", condition: (cards) => {
+        return cards.filter(c => c.id === 22 || c.id === 34 || c.id === 38).length === 3;
+    }},
+    hanami: { name: '花見で一杯', points: 5, card_ids: [9, 33], desc: "桜に幕 と 菊に盃", condition: (cards) => cards.some(c => c.id === 9) && cards.some(c => c.id === 33) },
+    tsukimi: { name: '月見で一杯', points: 5, card_ids: [29, 33], desc: "芒に月 と 菊に盃", condition: (cards) => cards.some(c => c.id === 29) && cards.some(c => c.id === 33) },
+    tanzaku: { name: '短冊', points: 1, desc: "5枚で1点、以降1枚毎に+1点", condition: (cards) => cards.filter(c => c.type === 'tanzaku').length >= 5 },
+    tane: { name: 'タネ', points: 1, desc: "5枚で1点、以降1枚毎に+1点", condition: (cards) => cards.filter(c => c.type === 'tane').length >= 5 },
+    kasu: { name: 'カス', points: 1, desc: "10枚で1点、以降1枚毎に+1点", condition: (cards) => cards.filter(c => c.type === 'kasu').length >= 10 },
+};
+
+
+// --- Game State ---
+let deck = [];
+let playerHand = [], opponentHand = [], field = [];
+let playerCaptured = [], opponentCaptured = [];
+let playerTotalScore = 0, opponentTotalScore = 0;
+let currentPlayer = 'player';
+let isPlayerTurn = true;
+let selectedHandCard = null;
+let gamePhase = 'setup'; // setup, playing, yaku-check, round-end
+
+// --- DOM Elements ---
+const playerAreaContainer = document.getElementById('player-area-container');
+const opponentAreaContainer = document.getElementById('opponent-area-container');
+const playerHandEl = document.getElementById('player-hand');
+const opponentHandEl = document.getElementById('opponent-hand');
+const fieldEl = document.getElementById('field');
+const deckEl = document.getElementById('deck');
+const playerCapturedEl = document.getElementById('player-captured');
+const opponentCapturedEl = document.getElementById('opponent-captured');
+const playerYakuEl = document.getElementById('player-yaku');
+const opponentYakuEl = document.getElementById('opponent-yaku');
+const playerTotalScoreEl = document.getElementById('player-total-score');
+const opponentTotalScoreEl = document.getElementById('opponent-total-score');
+const messageBox = document.getElementById('message-box');
+const messageTitle = document.getElementById('message-title');
+const messageText = document.getElementById('message-text');
+const messageButtons = document.getElementById('message-buttons');
+const yakuModal = document.getElementById('yaku-modal');
+const yakuListButton = document.getElementById('yaku-list-button');
+const closeYakuModalButton = document.getElementById('close-yaku-modal-button');
+const yakuListContent = document.getElementById('yaku-list-content');
+
+
+// --- Core Game Logic ---
+
+function createCardElement(card, isOpponentHand = false) {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'card';
+    cardEl.dataset.cardId = card.id;
+
+    if (isOpponentHand) {
+        cardEl.classList.add('opponent-card');
+    } else {
+        cardEl.classList.add(`type-${card.type}`);
+        const monthEl = document.createElement('span');
+        monthEl.textContent = `${card.month}月`;
+        
+        const nameEl = document.createElement('span');
+        nameEl.textContent = card.name;
+        
+        const typeEl = document.createElement('span');
+        typeEl.textContent = `(${card.type.toUpperCase()})`;
+
+        cardEl.appendChild(monthEl);
+        cardEl.appendChild(nameEl);
+        cardEl.appendChild(typeEl);
+    }
+    return cardEl;
+}
+
+function render() {
+    playerHandEl.innerHTML = '';
+    playerHand.forEach(card => {
+        const cardEl = createCardElement(card);
+        cardEl.addEventListener('click', () => onPlayerCardClick(card, cardEl));
+        playerHandEl.appendChild(cardEl);
+    });
+
+    opponentHandEl.innerHTML = '';
+    opponentHand.forEach(card => {
+        const cardEl = createCardElement(card, true);
+        opponentHandEl.appendChild(cardEl);
+    });
+
+    fieldEl.innerHTML = '';
+    field.forEach(card => {
+        const cardEl = createCardElement(card);
+        cardEl.addEventListener('click', () => onFieldCardClick(card, cardEl));
+        fieldEl.appendChild(cardEl);
+    });
+
+    playerCapturedEl.innerHTML = '';
+    playerCaptured.sort((a,b) => b.value - a.value).forEach(card => playerCapturedEl.appendChild(createCardElement(card)));
+    opponentCapturedEl.innerHTML = '';
+    opponentCaptured.sort((a,b) => b.value - a.value).forEach(card => opponentCapturedEl.appendChild(createCardElement(card)));
+    
+    deckEl.textContent = deck.length > 0 ? deck.length : '0';
+    playerTotalScoreEl.textContent = playerTotalScore;
+    opponentTotalScoreEl.textContent = opponentTotalScore;
+}
+
+function startGame() {
+    gamePhase = 'playing';
+    deck = [...CARDS];
+    shuffle(deck);
+
+    playerHand = [], opponentHand = [], field = [];
+    playerCaptured = [], opponentCaptured = [];
+    playerYakuEl.innerHTML = '';
+    opponentYakuEl.innerHTML = '';
+    
+    for (let i = 0; i < 8; i++) {
+        playerHand.push(deck.pop());
+        opponentHand.push(deck.pop());
+        field.push(deck.pop());
+    }
+
+    currentPlayer = 'player';
+    isPlayerTurn = true;
+    updateTurnIndicator();
+    render();
+    checkFieldForInitialYaku();
+}
+
+function updateTurnIndicator() {
+    if (isPlayerTurn) {
+        playerAreaContainer.classList.add('active-turn');
+        opponentAreaContainer.classList.remove('active-turn');
+    } else {
+        playerAreaContainer.classList.remove('active-turn');
+        opponentAreaContainer.classList.add('active-turn');
+    }
+}
+
+function checkFieldForInitialYaku() {
+    const monthCounts = field.reduce((acc, card) => {
+        acc[card.month] = (acc[card.month] || 0) + 1;
+        return acc;
+    }, {});
+
+    const fourOfAKindMonth = Object.keys(monthCounts).find(month => monthCounts[month] === 4);
+    if (fourOfAKindMonth) {
+        showMessage('手四', '場に同じ月の札が4枚出ました。この回は流局です。', [{ text: '次の回へ', action: startGame }]);
+        return;
+    }
+    const pairMonths = Object.keys(monthCounts).filter(month => monthCounts[month] === 2);
+    if(pairMonths.length > 0) {
+        setTimeout(() => {
+            pairMonths.forEach(month => {
+                const cardsToCapture = field.filter(c => c.month === parseInt(month));
+                field = field.filter(c => c.month !== parseInt(month));
+                playerCaptured.push(...cardsToCapture);
+            });
+            render();
+            showMessage('場の札合わせ', '場に同じ月の札があったため取得しました。', [{text: 'OK', action: hideMessage}]);
+        }, 1000);
+    }
+}
+
+function shuffle(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+    }
+}
+
+function onPlayerCardClick(card, cardEl) {
+    if (!isPlayerTurn || gamePhase !== 'playing') return;
+
+    const matchesOnField = field.filter(fieldCard => fieldCard.month === card.month);
+
+    if (matchesOnField.length === 0) {
+        selectedHandCard = null;
+        playerHand = playerHand.filter(c => c.id !== card.id);
+        field.push(card);
+        isPlayerTurn = false;
+        updateTurnIndicator();
+        render();
+        setTimeout(drawFromDeck, 500);
+    } else if (matchesOnField.length === 1) {
+        selectedHandCard = null;
+        isPlayerTurn = false;
+        updateTurnIndicator();
+        captureCards(card, matchesOnField[0]);
+    } else {
+        if (selectedHandCard && selectedHandCard.id === card.id) {
+            selectedHandCard = null;
+            cardEl.classList.remove('selected');
+            fieldEl.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+        } else {
+            selectedHandCard = card;
+            playerHandEl.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+            cardEl.classList.add('selected');
+            fieldEl.querySelectorAll('.card').forEach(c => {
+                c.classList.toggle('selected', matchesOnField.some(match => match.id === parseInt(c.dataset.cardId)));
+            });
+        }
+    }
+}
+
+function onFieldCardClick(fieldCard, cardEl) {
+    if (!isPlayerTurn || !selectedHandCard || fieldCard.month !== selectedHandCard.month) return;
+    
+    isPlayerTurn = false;
+    updateTurnIndicator();
+    captureCards(selectedHandCard, fieldCard);
+    selectedHandCard = null;
+    playerHandEl.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+    fieldEl.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+}
+
+function captureCards(handCard, fieldCard) {
+    const capturerHand = currentPlayer === 'player' ? playerHand : opponentHand;
+    const capturerCaptured = currentPlayer === 'player' ? playerCaptured : opponentCaptured;
+
+    const handIndex = capturerHand.findIndex(c => c.id === handCard.id);
+    if(handIndex > -1) capturerHand.splice(handIndex, 1);
+    
+    const fieldIndex = field.findIndex(c => c.id === fieldCard.id);
+    if(fieldIndex > -1) field.splice(fieldIndex, 1);
+    
+    capturerCaptured.push(handCard, fieldCard);
+    render();
+    setTimeout(drawFromDeck, 500);
+}
+
+function drawFromDeck() {
+    if (deck.length === 0) {
+        endTurn();
+        return;
+    }
+
+    const drawnCard = deck.pop();
+    
+    const drawnCardEl = createCardElement(drawnCard);
+    drawnCardEl.style.position = 'fixed';
+    drawnCardEl.style.top = '50%';
+    drawnCardEl.style.right = '20px';
+    drawnCardEl.style.transform = 'translateY(-50%)';
+    drawnCardEl.style.zIndex = '50';
+    document.body.appendChild(drawnCardEl);
+
+    setTimeout(() => {
+        drawnCardEl.style.transition = 'all 0.5s ease';
+        drawnCardEl.style.top = '50%';
+        drawnCardEl.style.left = '50%';
+        drawnCardEl.style.transform = 'translate(-50%, -50%) scale(1.2)';
+    }, 100);
+
+    setTimeout(() => {
+        document.body.removeChild(drawnCardEl);
+        const matchesOnField = field.filter(card => card.month === drawnCard.month);
+        const capturerCaptured = currentPlayer === 'player' ? playerCaptured : opponentCaptured;
+
+        if (matchesOnField.length > 0) {
+            const cardToCapture = matchesOnField[0];
+            field = field.filter(c => c.id !== cardToCapture.id);
+            capturerCaptured.push(drawnCard, cardToCapture);
+        } else {
+            field.push(drawnCard);
+        }
+        render();
+        endTurn();
+    }, 1500);
+}
+
+function endTurn() {
+    const currentCaptured = currentPlayer === 'player' ? playerCaptured : opponentCaptured;
+    const { yakuList, totalPoints } = checkYaku(currentCaptured);
+    const existingYakuEl = currentPlayer === 'player' ? playerYakuEl : opponentYakuEl;
+    const existingPoints = parseInt(existingYakuEl.dataset.points || '0');
+
+    if (yakuList.length > 0 && totalPoints > existingPoints) {
+        gamePhase = 'yaku-check';
+        updateYakuDisplay(currentPlayer, yakuList, totalPoints);
+        if (currentPlayer === 'player') {
+            showMessage(
+                '役ができました！',
+                `役: ${yakuList.map(y => y.name).join(', ')} (${totalPoints}点)。どうしますか？`,
+                [
+                    { text: 'こいこい', action: () => koiKoi('player', totalPoints) },
+                    { text: '勝負', action: () => shobu('player', totalPoints) }
+                ]
+            );
+        } else {
+            setTimeout(() => {
+                if (totalPoints < 6 && deck.length > 2) {
+                    showMessage('相手はこいこいです', `相手は「こいこい」を選択しました。`, [{ text: '続ける', action: () => koiKoi('opponent', totalPoints) }]);
+                } else {
+                    showMessage('相手は勝負しました', `相手は「勝負」を選択しました。`, [{ text: 'OK', action: () => shobu('opponent', totalPoints) }]);
+                }
+            }, 1000);
+        }
+    } else {
+        switchPlayer();
+    }
+}
+
+function koiKoi(player, points) {
+    gamePhase = 'playing';
+    const yakuEl = player === 'player' ? playerYakuEl : opponentYakuEl;
+    yakuEl.dataset.points = points;
+    hideMessage();
+    switchPlayer();
+}
+
+function shobu(player, points) {
+    gamePhase = 'round-end';
+    hideMessage();
+    let finalPoints = points;
+    const yakuEl = player === 'player' ? playerYakuEl : opponentYakuEl;
+    if (parseInt(yakuEl.dataset.points || '0') > 0) {
+        finalPoints *= 2;
+    }
+
+    if (player === 'player') {
+        playerTotalScore += finalPoints;
+    } else {
+        opponentTotalScore += finalPoints;
+    }
+    render();
+    showMessage('勝負あり！', `${player === 'player' ? 'あなた' : '相手'}が ${finalPoints}点を獲得しました。`, [{ text: '次の回へ', action: startGame }]);
+}
+
+function switchPlayer() {
+    if (playerHand.length === 0 && opponentHand.length === 0) {
+        showMessage('流局', '手札がなくなりました。引き分けです。', [{ text: '次の回へ', action: startGame }]);
+        return;
+    }
+
+    currentPlayer = (currentPlayer === 'player') ? 'opponent' : 'player';
+    isPlayerTurn = (currentPlayer === 'player');
+    updateTurnIndicator();
+    
+    if (!isPlayerTurn) {
+        setTimeout(runAITurn, 1500);
+    }
+}
+
+function runAITurn() {
+    if (isPlayerTurn || gamePhase !== 'playing') return;
+
+    let handCardToPlay = null;
+    let fieldCardToMatch = null;
+
+    const cardTypesPriority = ['hikari', 'tane', 'tanzaku', 'kasu'];
+    for (const type of cardTypesPriority) {
+        for (const hc of opponentHand) {
+            if (hc.type === type) {
+                const match = field.find(fc => fc.month === hc.month);
+                if (match) {
+                    handCardToPlay = hc;
+                    fieldCardToMatch = match;
+                    break;
+                }
+            }
+        }
+        if (handCardToPlay) break;
+    }
+    
+    if (!handCardToPlay) {
+        for (const hc of opponentHand) {
+            const match = field.find(fc => fc.month === hc.month);
+            if (match) {
+                handCardToPlay = hc;
+                fieldCardToMatch = match;
+                break;
+            }
+        }
+    }
+
+    setTimeout(() => {
+        if (handCardToPlay) {
+            captureCards(handCardToPlay, fieldCardToMatch);
+        } else {
+            handCardToPlay = opponentHand.shift();
+            field.push(handCardToPlay);
+            render();
+            setTimeout(drawFromDeck, 1000);
+        }
+    }, 1000);
+}
+
+
+function checkYaku(capturedCards) {
+    let yakuList = [];
+    let totalPoints = 0;
+    
+    const checks = ['goko', 'ame_shiko', 'shiko', 'sanko', 'ino_shika_cho', 'akatan', 'aotan', 'tsukimi', 'hanami', 'tanzaku', 'tane', 'kasu'];
+    const completedYakuGroups = new Set();
+
+    for (const key of checks) {
+        const yaku = YAKU[key];
+        if (yaku.condition(capturedCards)) {
+            let points = yaku.points;
+            let name = yaku.name;
+
+            if (key === 'tanzaku') {
+                const count = capturedCards.filter(c => c.type === 'tanzaku').length;
+                points = 1 + (count - 5);
+                name = `${yaku.name} (${count}枚)`;
+            } else if (key === 'tane') {
+                const count = capturedCards.filter(c => c.type === 'tane').length;
+                points = 1 + (count - 5);
+                name = `${yaku.name} (${count}枚)`;
+            } else if (key === 'kasu') {
+                const count = capturedCards.filter(c => c.type === 'kasu').length;
+                points = 1 + (count - 10);
+                name = `${yaku.name} (${count}枚)`;
+            }
+
+            if (key === 'shiko' || key === 'ame_shiko') completedYakuGroups.add('hikari');
+            if (key === 'sanko' && completedYakuGroups.has('hikari')) continue;
+            
+            yakuList.push({ name, points });
+        }
+    }
+    
+    totalPoints = yakuList.reduce((sum, yaku) => sum + yaku.points, 0);
+    return { yakuList, totalPoints };
+}
+
+function updateYakuDisplay(player, yakuList, totalPoints) {
+    const yakuEl = player === 'player' ? playerYakuEl : opponentYakuEl;
+    if (yakuList.length > 0) {
+        yakuEl.innerHTML = `成立役: ${yakuList.map(y => `${y.name} ${y.points}点`).join(' / ')} | 合計: ${totalPoints}点`;
+    } else {
+        yakuEl.innerHTML = '';
+    }
+}
+
+// --- UI Helpers ---
+function showMessage(title, text, buttons = [{ text: 'OK', action: hideMessage }]) {
+    messageTitle.textContent = title;
+    messageText.textContent = text;
+    messageButtons.innerHTML = '';
+    buttons.forEach(btnInfo => {
+        const button = document.createElement('button');
+        button.textContent = btnInfo.text;
+        button.className = 'action-button';
+        button.onclick = btnInfo.action;
+        messageButtons.appendChild(button);
+    });
+    messageBox.classList.remove('hidden');
+}
+
+function hideMessage() {
+    messageBox.classList.add('hidden');
+}
+
+function populateYakuList() {
+    yakuListContent.innerHTML = '';
+    for (const key in YAKU) {
+        const yaku = YAKU[key];
+        const item = document.createElement('div');
+        item.className = 'yaku-item';
+        
+        const header = document.createElement('div');
+        header.className = 'yaku-header';
+
+        const nameDiv = document.createElement('div');
+        nameDiv.className = 'yaku-name';
+        nameDiv.innerHTML = `${yaku.name}<br><small class="text-gray-400">${yaku.desc}</small>`;
+        
+        const pointsDiv = document.createElement('div');
+        pointsDiv.className = 'yaku-points';
+        pointsDiv.textContent = `${yaku.points}点`;
+        
+        header.appendChild(nameDiv);
+        header.appendChild(pointsDiv);
+        item.appendChild(header);
+
+        if (yaku.card_ids) {
+            const cardsContainer = document.createElement('div');
+            cardsContainer.className = 'yaku-cards-container';
+            yaku.card_ids.forEach(cardId => {
+                const cardData = CARDS.find(c => c.id === cardId);
+                if (cardData) {
+                    const miniCard = createCardElement(cardData);
+                    miniCard.style.width = '35px';
+                    miniCard.style.height = '52.5px';
+                    miniCard.style.fontSize = '6px';
+                    miniCard.style.cursor = 'default';
+                    miniCard.style.lineHeight = '1.1';
+                    cardsContainer.appendChild(miniCard);
+                }
+            });
+            item.appendChild(cardsContainer);
+        }
+        yakuListContent.appendChild(item);
+    }
+}
+
+// --- Initial Load ---
+document.addEventListener('DOMContentLoaded', () => {
+    populateYakuList();
+    
+    yakuListButton.addEventListener('click', () => {
+        yakuModal.classList.remove('hidden');
+    });
+    
+    closeYakuModalButton.addEventListener('click', () => {
+        yakuModal.classList.add('hidden');
+    });
+    
+    yakuModal.addEventListener('click', (e) => {
+        if (e.target === yakuModal) {
+            yakuModal.classList.add('hidden');
+        }
+    });
+
+    showMessage('花札こいこい', 'ゲームを開始しますか？', [{ text: '開始', action: () => { hideMessage(); startGame(); } }]);
+});
+
+</script>
+</body>
+</html>
