@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>お掃除ゲーム v5.2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', sans-serif;
+            touch-action: none; /* スマホでのスクロールを無効化 */
+        }
+        .game-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            aspect-ratio: 4 / 3;
+            cursor: none; /* デフォルトカーソルを非表示 */
+            background-color: #f0e6d2; /* 床の色 */
+            border-radius: 0.5rem;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 0.5rem;
+        }
+        #cursor {
+            position: absolute;
+            border: 2px solid white;
+            border-radius: 50%;
+            pointer-events: none; /* カーソルがマウスイベントを妨げないようにする */
+            transform: translate(-50%, -50%);
+            mix-blend-mode: difference; /* 背景色に応じて色が変わる */
+            transition: width 0.2s, height 0.2s; /* サイズ変更を滑らかに */
+        }
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+
+    <h1 class="text-3xl font-bold text-gray-700 mb-4">お掃除ゲーム</h1>
+
+    <!-- 情報表示パネル -->
+    <div class="w-full max-w-2xl bg-white p-4 rounded-lg shadow-md mb-4">
+        <div class="flex justify-between items-center">
+            <div>
+                <span class="text-lg text-gray-600">ステージ: <span id="stageLevel">1</span></span>
+            </div>
+            <div>
+                <span class="text-lg text-yellow-600">💰: <span id="money">0</span></span>
+            </div>
+            <div class="w-1/3">
+                 <div class="w-full bg-gray-200 rounded-full h-6">
+                    <div id="dirtProgress" class="bg-yellow-800 h-6 rounded-full text-xs font-medium text-blue-100 text-center p-1 leading-none transition-all duration-300" style="width: 100%">
+                        <span id="dirtPercentage">汚れ: 100%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="text-center mt-2">
+            <span class="text-gray-500">現在の道具: <span id="currentToolName">雑巾</span></span>
+        </div>
+        <!-- 累計お掃除記録 -->
+        <div class="text-center mt-4 border-t pt-4">
+            <h2 class="text-xl font-bold text-gray-700">累計お掃除記録</h2>
+            <p class="text-lg text-gray-600 mt-2">
+                合計お掃除面積: <span id="totalArea" class="font-bold text-blue-600">0.00㎡</span>
+            </p>
+            <p id="equivalent" class="text-md text-green-600 mt-1 h-6"></p>
+        </div>
+    </div>
+
+    <div id="gameContainer" class="game-container rounded-lg shadow-lg">
+        <canvas id="dirtCanvas"></canvas>
+        <canvas id="effectCanvas"></canvas>
+        <div id="cursor"></div>
+    </div>
+    
+    <div id="messageArea" class="mt-4 h-8 text-xl font-bold text-green-600"></div>
+
+    <!-- ストアのモーダル -->
+    <div id="storeModal" class="modal-backdrop hidden">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <!-- ポップアップ内のお掃除結果 -->
+            <div class="text-center mb-4 border-b pb-4">
+                <h3 class="text-xl font-bold text-gray-700">今回のお掃除結果</h3>
+                <p class="text-lg text-gray-600 mt-2">
+                    合計お掃除面積: <span id="modalTotalArea" class="font-bold text-blue-600">0.00㎡</span>
+                </p>
+                <p id="modalEquivalent" class="text-md text-green-600 mt-1 h-6"></p>
+                <p class="text-lg text-yellow-600 mt-2">
+                    獲得報酬: <span id="modalReward" class="font-bold">0</span>円
+                </p>
+            </div>
+
+            <h2 class="text-2xl font-bold text-center mb-4">道具ストア</h2>
+            <div id="toolList" class="space-y-3">
+                <!-- 道具はここに動的に追加されます -->
+            </div>
+            <div class="text-center mt-6">
+                <button id="nextStageButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-colors">
+                    次のステージへ
+                </button>
+            </div>
+        </div>
+    </div>
+
+<script>
+// =================================
+// ゲームの初期設定
+// =================================
+const dirtCanvas = document.getElementById('dirtCanvas');
+const dirtCtx = dirtCanvas.getContext('2d');
+const effectCanvas = document.getElementById('effectCanvas');
+const effectCtx = effectCanvas.getContext('2d');
+const cursor = document.getElementById('cursor');
+
+// UI要素
+const stageLevelUI = document.getElementById('stageLevel');
+const moneyUI = document.getElementById('money');
+const dirtPercentageUI = document.getElementById('dirtPercentage');
+const dirtProgressUI = document.getElementById('dirtProgress');
+const currentToolNameUI = document.getElementById('currentToolName');
+const messageArea = document.getElementById('messageArea');
+const totalAreaUI = document.getElementById('totalArea');
+const equivalentUI = document.getElementById('equivalent');
+const storeModal = document.getElementById('storeModal');
+const toolListUI = document.getElementById('toolList');
+const nextStageButton = document.getElementById('nextStageButton');
+const modalTotalAreaUI = document.getElementById('modalTotalArea');
+const modalEquivalentUI = document.getElementById('modalEquivalent');
+const modalRewardUI = document.getElementById('modalReward');
+
+// グリッド設定
+const CELL_SIZE = 10; // 汚れを管理するグリッドの1セルの大きさ
+const CELL_AREA_M2 = (CELL_SIZE * CELL_SIZE) / 10000; // 1セルあたりの面積(m^2)
+let GRID_COLS, GRID_ROWS;
+let dirtGrid = [];
+
+// ゲームの状態
+let gameState = {
+    isDrawing: false,
+    stage: 1,
+    money: 0,
+    currentToolId: 'rag',
+    totalHealth: 0,
+    remainingHealth: 0,
+    stageDirtReward: 0,
+    totalAreaCleaned: 0, // 累計お掃除面積 (m^2)
+    isCleared: false,
+    sparkles: [],
+    isToneStarted: false,
+};
+
+// 道具のデータ
+const tools = {
+    rag: { name: '雑巾', radius: 15, price: 0 },
+    mop: { name: 'モップ', radius: 30, price: 100 },
+    deck_brush: { name: 'デッキブラシ', radius: 50, price: 500 },
+    polisher: { name: 'ポリッシャー', radius: 80, price: 2000 },
+};
+
+// 汚れの種類
+const dirtTypes = {
+    mud:   { name: '泥汚れ', color: '#8B4513', health: 1, reward: 1 },
+    oil:   { name: '油汚れ', color: '#4a4a4a', health: 2, damagedColor: '#787878', reward: 3 },
+    juice: { name: 'ジュースのシミ', color: '#800080', health: 1, reward: 2 },
+    dust:  { name: 'ホコリ', color: '#b2b2b2', health: 1, reward: 1 }
+};
+
+// 面積の比較対象
+const areaEquivalents = [
+    { name: '一般的なバスタブ', area: 1.5, unit: '個' },
+    { name: '卓球台', area: 4.2, unit: '台' },
+    { name: 'ワンルームマンション', area: 25, unit: '部屋' },
+    { name: '学校の教室', area: 64, unit: '部屋' },
+    { name: 'コンビニ', area: 100, unit: '店舗' },
+    { name: 'テニスコート', area: 260, unit: '面' },
+    { name: 'バスケットボールコート', area: 420, unit: '面' },
+    { name: '25mプール', area: 300, unit: '個' },
+    { name: 'オリンピックプール', area: 1250, unit: '個' },
+    { name: 'サッカーフィールド', area: 7140, unit: '面' },
+    { name: '東京ドーム（グラウンド）', area: 13000, unit: '個' }
+].sort((a, b) => a.area - b.area);
+
+// サウンドエフェクト
+const sounds = {
+    purchase: new Tone.Synth({ oscillator: { type: "triangle" }, envelope: { attack: 0.005, decay: 0.1, sustain: 0.3, release: 1 } }).toDestination(),
+    stageClear: new Tone.PolySynth(Tone.Synth, { oscillator: { type: "fatsawtooth" } }).toDestination()
+};
+
+// =================================
+// ゲームの初期化とリサイズ処理
+// =================================
+function setupCanvas() {
+    const container = document.getElementById('gameContainer');
+    const size = container.clientWidth;
+    const height = size * (3 / 4);
+    
+    dirtCanvas.width = size;
+    dirtCanvas.height = height;
+    effectCanvas.width = size;
+    effectCanvas.height = height;
+
+    GRID_COLS = Math.floor(dirtCanvas.width / CELL_SIZE);
+    GRID_ROWS = Math.floor(dirtCanvas.height / CELL_SIZE);
+    
+    const currentTool = tools[gameState.currentToolId];
+    cursor.style.width = `${currentTool.radius * 2}px`;
+    cursor.style.height = `${currentTool.radius * 2}px`;
+
+    startStage();
+}
+
+// =================================
+// ステージの管理
+// =================================
+function startStage() {
+    gameState.isCleared = false;
+    messageArea.textContent = '';
+    storeModal.classList.add('hidden');
+    
+    dirtGrid = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(null));
+    dirtCtx.clearRect(0, 0, dirtCanvas.width, dirtCanvas.height);
+    
+    if (gameState.stage === 1) {
+        generateDirtPatch(Math.floor(GRID_COLS / 4), Math.floor(GRID_ROWS / 4), Math.floor(GRID_COLS / 2), Math.floor(GRID_ROWS / 2), 'mud');
+    } else {
+        const patchCount = Math.min(5 + gameState.stage, 15);
+        for (let i = 0; i < patchCount; i++) {
+            const x = Math.floor(Math.random() * GRID_COLS);
+            const y = Math.floor(Math.random() * GRID_ROWS);
+            const width = Math.floor(Math.random() * (GRID_COLS / 4)) + 5;
+            const height = Math.floor(Math.random() * (GRID_ROWS / 4)) + 5;
+            const dirtKeys = Object.keys(dirtTypes);
+            const type = dirtKeys[Math.floor(Math.random() * dirtKeys.length)];
+            generateDirtPatch(x, y, width, height, type);
+        }
+    }
+    
+    effectCtx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+    gameState.sparkles = [];
+    
+    calculateDirtAmount(true);
+    updateUI();
+    updateTotalAreaDisplay();
+}
+
+function generateDirtPatch(startX, startY, width, height, type) {
+    const dirt = dirtTypes[type];
+    for (let r = startY; r < startY + height && r < GRID_ROWS; r++) {
+        for (let c = startX; c < startX + width && c < GRID_COLS; c++) {
+            if (dirtGrid[r][c] === null) {
+                dirtGrid[r][c] = { type: type, health: dirt.health, lastHit: 0 };
+                dirtCtx.fillStyle = dirt.color;
+                dirtCtx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            }
+        }
+    }
+}
+
+
+// =================================
+// 描画と汚れの処理
+// =================================
+function getEventPos(canvas, evt) {
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    const clientX = evt.clientX || evt.touches[0].clientX;
+    const clientY = evt.clientY || evt.touches[0].clientY;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+}
+
+function clean(e) {
+    if (!gameState.isDrawing || gameState.isCleared) return;
+    
+    const pos = getEventPos(dirtCanvas, e);
+    const currentTool = tools[gameState.currentToolId];
+    const toolRadiusInGrid = currentTool.radius / CELL_SIZE;
+    const gridX = Math.floor(pos.x / CELL_SIZE);
+    const gridY = Math.floor(pos.y / CELL_SIZE);
+
+    for (let r = Math.max(0, Math.floor(gridY - toolRadiusInGrid)); r <= Math.min(GRID_ROWS - 1, Math.floor(gridY + toolRadiusInGrid)); r++) {
+        for (let c = Math.max(0, Math.floor(gridX - toolRadiusInGrid)); c <= Math.min(GRID_COLS - 1, Math.floor(gridX + toolRadiusInGrid)); c++) {
+            const dx = (c - gridX);
+            const dy = (r - gridY);
+            if (dx * dx + dy * dy <= toolRadiusInGrid * toolRadiusInGrid) {
+                const dirt = dirtGrid[r][c];
+                if (dirt) {
+                    const now = Date.now();
+                    if (now - dirt.lastHit > 100) {
+                        dirt.health--;
+                        dirt.lastHit = now;
+
+                        if (dirt.health <= 0) {
+                            dirtGrid[r][c] = null;
+                            dirtCtx.clearRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                            gameState.totalAreaCleaned += CELL_AREA_M2;
+                            updateTotalAreaDisplay();
+                        } else if (dirt.type === 'oil') {
+                            dirtCtx.fillStyle = dirtTypes.oil.damagedColor;
+                            dirtCtx.fillRect(c * CELL_SIZE, r * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+function calculateDirtAmount(isInitial = false) {
+    if (gameState.isCleared) return;
+    
+    let currentHealth = 0;
+    let dirtReward = 0;
+    for (let r = 0; r < GRID_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+            const cell = dirtGrid[r][c];
+            if (cell) {
+                currentHealth += cell.health;
+                if(isInitial) {
+                    const dirtInfo = dirtTypes[cell.type];
+                    dirtReward += dirtInfo.health * dirtInfo.reward;
+                }
+            }
+        }
+    }
+
+    if (isInitial) {
+        gameState.totalHealth = currentHealth;
+        gameState.stageDirtReward = dirtReward;
+    }
+    gameState.remainingHealth = currentHealth;
+    updateDirtUI();
+
+    const remainingPercentage = gameState.totalHealth > 0 ? (gameState.remainingHealth / gameState.totalHealth) * 100 : 0;
+    
+    if (remainingPercentage <= 0.1 && !gameState.isCleared) {
+        playSparkleEffect();
+        stageClear();
+    }
+}
+
+// =================================
+// エフェクト
+// =================================
+function playSparkleEffect() {
+    if (gameState.sparkles.length > 0) return;
+    for (let i = 0; i < 50; i++) {
+        gameState.sparkles.push({
+            x: Math.random() * effectCanvas.width,
+            y: Math.random() * effectCanvas.height,
+            size: Math.random() * 2 + 1,
+            opacity: Math.random() * 0.5 + 0.5,
+            life: Math.random() * 50 + 20,
+        });
+    }
+    if (gameState.sparkles.length > 0) animateSparkles();
+}
+
+function animateSparkles() {
+    effectCtx.clearRect(0, 0, effectCanvas.width, effectCanvas.height);
+    for (let i = gameState.sparkles.length - 1; i >= 0; i--) {
+        const s = gameState.sparkles[i];
+        s.life--;
+        if (s.life <= 0) {
+            gameState.sparkles.splice(i, 1);
+            continue;
+        }
+        effectCtx.beginPath();
+        effectCtx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+        effectCtx.fillStyle = `rgba(255, 255, 100, ${s.opacity * (s.life / 50)})`;
+        effectCtx.fill();
+    }
+    if (gameState.sparkles.length > 0) requestAnimationFrame(animateSparkles);
+}
+
+
+// =================================
+// UIの更新
+// =================================
+function updateUI() {
+    stageLevelUI.textContent = gameState.stage;
+    moneyUI.textContent = gameState.money;
+    currentToolNameUI.textContent = tools[gameState.currentToolId].name;
+    updateDirtUI();
+}
+
+function updateDirtUI() {
+    if (gameState.totalHealth === 0) {
+        dirtPercentageUI.textContent = `汚れ: 0.0%`;
+        dirtProgressUI.style.width = `0%`;
+        return;
+    };
+    const percentage = Math.max(0, (gameState.remainingHealth / gameState.totalHealth) * 100);
+    dirtPercentageUI.textContent = `汚れ: ${percentage.toFixed(1)}%`;
+    dirtProgressUI.style.width = `${percentage}%`;
+}
+
+function updateTotalAreaDisplay() {
+    totalAreaUI.textContent = `${gameState.totalAreaCleaned.toFixed(2)}㎡`;
+
+    let bestEquivalent = null;
+    for (let i = areaEquivalents.length - 1; i >= 0; i--) {
+        if (gameState.totalAreaCleaned >= areaEquivalents[i].area) {
+            bestEquivalent = areaEquivalents[i];
+            break;
+        }
+    }
+
+    let equivalentText = 'まだまだお掃除が必要です！';
+    if (bestEquivalent) {
+        const count = (gameState.totalAreaCleaned / bestEquivalent.area).toFixed(1);
+        equivalentText = `これは${bestEquivalent.name} 約${count}${bestEquivalent.unit}分です！`;
+    }
+    
+    equivalentUI.textContent = equivalentText;
+    // ポップアップ内の表示も更新
+    modalTotalAreaUI.textContent = `${gameState.totalAreaCleaned.toFixed(2)}㎡`;
+    modalEquivalentUI.textContent = equivalentText;
+}
+
+// =================================
+// ストアの処理
+// =================================
+function populateStore() {
+    toolListUI.innerHTML = '';
+    Object.keys(tools).forEach(toolId => {
+        const tool = tools[toolId];
+        if (tool.price === 0) return;
+        const isOwned = Object.keys(tools).indexOf(toolId) <= Object.keys(tools).indexOf(gameState.currentToolId);
+        const canAfford = gameState.money >= tool.price;
+        const buttonDisabled = isOwned || !canAfford;
+        const buttonClass = isOwned ? 'bg-gray-400 cursor-not-allowed' : canAfford ? 'bg-green-500 hover:bg-green-600' : 'bg-red-400 cursor-not-allowed';
+        const buttonText = isOwned ? '購入済み' : `購入 (${tool.price}円)`;
+
+        toolListUI.innerHTML += `
+            <div class="flex items-center justify-between p-3 bg-gray-100 rounded-lg">
+                <div>
+                    <p class="font-bold text-lg">${tool.name}</p>
+                    <p class="text-sm text-gray-600">掃除範囲: ${tool.radius * 2}px</p>
+                </div>
+                <button onclick="buyTool('${toolId}')" class="text-white font-bold py-2 px-4 rounded-lg transition-colors ${buttonClass}" ${buttonDisabled ? 'disabled' : ''}>
+                    ${buttonText}
+                </button>
+            </div>`;
+    });
+}
+
+window.buyTool = function(toolId) {
+    const tool = tools[toolId];
+    if (gameState.money >= tool.price) {
+        gameState.money -= tool.price;
+        gameState.currentToolId = toolId;
+        sounds.purchase.triggerAttackRelease("C5", "8n");
+        const currentTool = tools[gameState.currentToolId];
+        cursor.style.width = `${currentTool.radius * 2}px`;
+        cursor.style.height = `${currentTool.radius * 2}px`;
+        updateUI();
+        populateStore();
+    }
+}
+
+// =================================
+// ゲームフローの制御
+// =================================
+function stageClear() {
+    if (gameState.isCleared) return;
+    gameState.isCleared = true;
+    
+    let reward;
+    if (gameState.stage === 1) {
+        reward = 100;
+    } else {
+        reward = gameState.stageDirtReward + 50;
+    }
+
+    gameState.money += reward;
+    
+    sounds.stageClear.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", Tone.now());
+    messageArea.textContent = `ステージクリア！ ${reward}円ゲット！`;
+    
+    modalRewardUI.textContent = reward; // ポップアップの報酬を更新
+    updateUI();
+    updateTotalAreaDisplay(); // ポップアップ表示のために最新情報に更新
+    populateStore();
+    setTimeout(() => storeModal.classList.remove('hidden'), 1000);
+}
+
+function goToNextStage() {
+    gameState.stage++;
+    setupCanvas();
+}
+
+// =================================
+// イベントリスナー
+// =================================
+function addEventListeners() {
+    const container = document.getElementById('gameContainer');
+    
+    const startDrawing = (e) => {
+        e.preventDefault();
+        if (!gameState.isToneStarted) {
+            Tone.start();
+            gameState.isToneStarted = true;
+        }
+        gameState.isDrawing = true;
+        clean(e);
+    };
+
+    const stopDrawing = () => {
+        if (!gameState.isDrawing) return;
+        gameState.isDrawing = false;
+        calculateDirtAmount();
+    };
+
+    const draw = (e) => {
+        e.preventDefault();
+        const pos = getEventPos(dirtCanvas, e);
+        cursor.style.left = `${pos.x}px`;
+        cursor.style.top = `${pos.y}px`;
+        clean(e);
+    };
+    
+    container.addEventListener('mousedown', startDrawing);
+    container.addEventListener('mouseup', stopDrawing);
+    container.addEventListener('mousemove', draw);
+    container.addEventListener('mouseleave', stopDrawing);
+    container.addEventListener('touchstart', startDrawing, { passive: false });
+    container.addEventListener('touchend', stopDrawing);
+    container.addEventListener('touchmove', draw, { passive: false });
+    nextStageButton.addEventListener('click', goToNextStage);
+    window.addEventListener('resize', setupCanvas);
+}
+
+// =================================
+// ゲーム開始
+// =================================
+window.onload = () => {
+    setupCanvas();
+    addEventListeners();
+};
+
+</script>
+</body>
+</html>
