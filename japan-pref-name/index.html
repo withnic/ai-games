@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本の都道府県当てゲーム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&family=M+PLUS+Rounded+1c:wght@500;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'M PLUS Rounded 1c', 'Inter', sans-serif;
+        }
+        .map-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px; /* 地図の最大幅 */
+            margin: 0 auto;
+        }
+        .map-container img {
+            width: 100%;
+            height: auto;
+        }
+        .map-number {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid #3b82f6; /* blue-500 */
+            color: #1d4ed8; /* blue-700 */
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            transform: translate(-50%, -50%); /* 中央揃え */
+            user-select: none;
+            pointer-events: none; /* Make numbers unclickable */
+        }
+        /* スマートフォン向けにサイズを調整 */
+        @media (max-width: 640px) {
+            .map-number {
+                width: 20px;
+                height: 20px;
+                font-size: 10px;
+            }
+        }
+        .answer-input.correct {
+            border-color: #22c55e; /* green-500 */
+            background-color: #f0fdf4; /* green-50 */
+        }
+        .answer-input.incorrect {
+            border-color: #ef4444; /* red-500 */
+            background-color: #fef2f2; /* red-50 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100 p-4">
+    <div class="w-full max-w-6xl mx-auto bg-white rounded-2xl shadow-lg p-4 sm:p-8">
+        <div class="text-center mb-6">
+            <h1 class="text-2xl sm:text-4xl font-bold text-gray-800">日本の都道府県当てゲーム</h1>
+            <p class="text-gray-600 mt-2">地図上の番号に対応する都道府県名を入力してください。</p>
+        </div>
+
+        <!-- Game Controls & Score -->
+        <div class="flex flex-col sm:flex-row items-center justify-between mb-4 bg-gray-50 p-4 rounded-lg sticky top-0 z-10">
+            <div class="flex items-center space-x-3">
+                <input type="checkbox" id="include-capital" class="h-5 w-5 rounded text-blue-500 focus:ring-blue-400">
+                <label for="include-capital" class="text-gray-700 font-medium">県庁所在地もクイズに含める</label>
+            </div>
+            <div class="text-center my-4 sm:my-0">
+                 <p class="text-sm text-green-700 font-semibold">スコア</p>
+                 <p id="score-text" class="text-2xl font-bold text-green-900">0 / 47</p>
+            </div>
+            <div class="flex space-x-2">
+                 <button id="check-button" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
+                    答え合わせ
+                </button>
+                <button id="reset-button" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg transition-transform transform hover:scale-105">
+                    リセット
+                </button>
+            </div>
+        </div>
+
+        <!-- Main Content (Map and Answers) -->
+        <div class="flex flex-col lg:flex-row gap-8">
+            <!-- Japan Map -->
+            <div class="lg:w-1/2">
+                <div id="map-container" class="map-container">
+                    <img src="https://raw.githubusercontent.com/geolonia/japanese-prefectures/master/map-full.svg" alt="日本の白地図">
+                    <!-- Numbers will be injected here by JavaScript -->
+                </div>
+            </div>
+
+            <!-- Answer Sheet -->
+            <div class="lg:w-1/2">
+                <h2 class="text-xl font-bold text-gray-700 mb-4 text-center">解答欄</h2>
+                <div id="answer-sheet" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-2 max-h-[600px] overflow-y-auto pr-2">
+                    <!-- Answer inputs will be injected here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const prefectures = [
+            { id: "jp-01", name: "北海道", capital: "札幌市", number: 1, pos: { top: '18%', left: '77%' } },
+            { id: "jp-02", name: "青森県", capital: "青森市", number: 2, pos: { top: '33%', left: '63.5%' } },
+            { id: "jp-03", name: "岩手県", capital: "盛岡市", number: 3, pos: { top: '41%', left: '67%' } },
+            { id: "jp-04", name: "宮城県", capital: "仙台市", number: 4, pos: { top: '48%', left: '65.5%' } },
+            { id: "jp-05", name: "秋田県", capital: "秋田市", number: 5, pos: { top: '40%', left: '62%' } },
+            { id: "jp-06", name: "山形県", capital: "山形市", number: 6, pos: { top: '48%', left: '61%' } },
+            { id: "jp-07", name: "福島県", capital: "福島市", number: 7, pos: { top: '55%', left: '61%' } },
+            { id: "jp-08", name: "茨城県", capital: "水戸市", number: 8, pos: { top: '61.5%', left: '64%' } },
+            { id: "jp-09", name: "栃木県", capital: "宇都宮市", number: 9, pos: { top: '59.5%', left: '59.5%' } },
+            { id: "jp-10", name: "群馬県", capital: "前橋市", number: 10, pos: { top: '60.5%', left: '56%' } },
+            { id: "jp-11", name: "埼玉県", capital: "さいたま市", number: 11, pos: { top: '63.5%', left: '57.5%' } },
+            { id: "jp-12", name: "千葉県", capital: "千葉市", number: 12, pos: { top: '68%', left: '63.5%' } },
+            { id: "jp-13", name: "東京都", capital: "新宿区", number: 13, pos: { top: '66.5%', left: '58%' } },
+            { id: "jp-14", name: "神奈川県", capital: "横浜市", number: 14, pos: { top: '71.0%', left: '58.5%' } },
+            { id: "jp-15", name: "新潟県", capital: "新潟市", number: 15, pos: { top: '54%', left: '54.5%' } },
+            { id: "jp-16", name: "富山県", capital: "富山市", number: 16, pos: { top: '60%', left: '47%' } },
+            { id: "jp-17", name: "石川県", capital: "金沢市", number: 17, pos: { top: '59%', left: '42.5%' } },
+            { id: "jp-18", name: "福井県", capital: "福井市", number: 18, pos: { top: '65%', left: '41.5%' } },
+            { id: "jp-19", name: "山梨県", capital: "甲府市", number: 19, pos: { top: '66.5%', left: '54%' } },
+            { id: "jp-20", name: "長野県", capital: "長野市", number: 20, pos: { top: '62.5%', left: '52%' } },
+            { id: "jp-21", name: "岐阜県", capital: "岐阜市", number: 21, pos: { top: '65%', left: '46%' } },
+            { id: "jp-22", name: "静岡県", capital: "静岡市", number: 22, pos: { top: '69.5%', left: '52.5%' } },
+            { id: "jp-23", name: "愛知県", capital: "名古屋市", number: 23, pos: { top: '70%', left: '47%' } },
+            { id: "jp-24", name: "三重県", capital: "津市", number: 24, pos: { top: '73%', left: '42.5%' } },
+            { id: "jp-25", name: "滋賀県", capital: "大津市", number: 25, pos: { top: '68.5%', left: '41%' } },
+            { id: "jp-26", name: "京都府", capital: "京都市", number: 26, pos: { top: '68%', left: '38%' } },
+            { id: "jp-27", name: "大阪府", capital: "大阪市", number: 27, pos: { top: '72%', left: '37.5%' } },
+            { id: "jp-28", name: "兵庫県", capital: "神戸市", number: 28, pos: { top: '69%', left: '34%' } },
+            { id: "jp-29", name: "奈良県", capital: "奈良市", number: 29, pos: { top: '74%', left: '40%' } },
+            { id: "jp-30", name: "和歌山県", capital: "和歌山市", number: 30, pos: { top: '77%', left: '38%' } },
+            { id: "jp-31", name: "鳥取県", capital: "鳥取市", number: 31, pos: { top: '67.5%', left: '29.5%' } },
+            { id: "jp-32", name: "島根県", capital: "松江市", number: 32, pos: { top: '67%', left: '23%' } },
+            { id: "jp-33", name: "岡山県", capital: "岡山市", number: 33, pos: { top: '70.5%', left: '29.5%' } },
+            { id: "jp-34", name: "広島県", capital: "広島市", number: 34, pos: { top: '72%', left: '24%' } },
+            { id: "jp-35", name: "山口県", capital: "山口市", number: 35, pos: { top: '74%', left: '18%' } },
+            { id: "jp-36", name: "徳島県", capital: "徳島市", number: 36, pos: { top: '76.5%', left: '31%' } },
+            { id: "jp-37", name: "香川県", capital: "高松市", number: 37, pos: { top: '74%', left: '30%' } },
+            { id: "jp-38", name: "愛媛県", capital: "松山市", number: 38, pos: { top: '78%', left: '24%' } },
+            { id: "jp-39", name: "高知県", capital: "高知市", number: 39, pos: { top: '80%', left: '27%' } },
+            { id: "jp-40", name: "福岡県", capital: "福岡市", number: 40, pos: { top: '78%', left: '12.5%' } },
+            { id: "jp-41", name: "佐賀県", capital: "佐賀市", number: 41, pos: { top: '79.5%', left: '10%' } },
+            { id: "jp-42", name: "長崎県", capital: "長崎市", number: 42, pos: { top: '81%', left: '7%' } },
+            { id: "jp-43", name: "熊本県", capital: "熊本市", number: 43, pos: { top: '83.5%', left: '12%' } },
+            { id: "jp-44", name: "大分県", capital: "大分市", number: 44, pos: { top: '80.5%', left: '16.5%' } },
+            { id: "jp-45", name: "宮崎県", capital: "宮崎市", number: 45, pos: { top: '87%', left: '15.5%' } },
+            { id: "jp-46", name: "鹿児島県", capital: "鹿児島市", number: 46, pos: { top: '90%', left: '11%' } },
+            { id: "jp-47", name: "沖縄県", capital: "那覇市", number: 47, pos: { top: '15%', left: '17%' } }
+        ];
+
+        const mapContainer = document.getElementById('map-container');
+        const answerSheet = document.getElementById('answer-sheet');
+        const scoreText = document.getElementById('score-text');
+        const resetButton = document.getElementById('reset-button');
+        const checkButton = document.getElementById('check-button');
+        const includeCapitalCheckbox = document.getElementById('include-capital');
+
+        const createMapNumbers = () => {
+            mapContainer.querySelectorAll('.map-number').forEach(el => el.remove());
+            prefectures.forEach(p => {
+                const numberEl = document.createElement('div');
+                numberEl.className = 'map-number';
+                numberEl.textContent = p.number;
+                numberEl.style.top = p.pos.top;
+                numberEl.style.left = p.pos.left;
+                mapContainer.appendChild(numberEl);
+            });
+        };
+
+        const createAnswerSheet = () => {
+            answerSheet.innerHTML = '';
+            const includeCapital = includeCapitalCheckbox.checked;
+            
+            for (let i = 1; i <= 47; i++) {
+                const answerRow = document.createElement('div');
+                answerRow.className = 'flex items-center space-x-2';
+                answerRow.innerHTML = `
+                    <label for="pref-${i}" class="w-8 text-right font-bold text-gray-600">${i}.</label>
+                    <div class="flex-grow">
+                        <input type="text" id="pref-${i}" data-number="${i}" data-type="prefecture" class="answer-input w-full p-1 border-2 border-gray-300 rounded-md" placeholder="都道府県">
+                        <input type="text" id="cap-${i}" data-number="${i}" data-type="capital" class="answer-input w-full p-1 border-2 border-gray-300 rounded-md mt-1 ${includeCapital ? '' : 'hidden'}" placeholder="県庁所在地">
+                    </div>
+                `;
+                answerSheet.appendChild(answerRow);
+            }
+        };
+
+        const normalizeAnswer = (str) => {
+            // 「〜県」「〜府」「〜都」を取り除き、「北海道」はそのままにする
+            if (str.endsWith('県') || str.endsWith('府') || str.endsWith('都')) {
+                 if (str !== '北海道') {
+                    return str.slice(0, -1);
+                 }
+            }
+            return str;
+        };
+
+        const checkAnswers = () => {
+            let score = 0;
+            const includeCapital = includeCapitalCheckbox.checked;
+            let totalQuestions = includeCapital ? 94 : 47;
+            
+            prefectures.forEach(p => {
+                const prefInput = document.getElementById(`pref-${p.number}`);
+                const capInput = document.getElementById(`cap-${p.number}`);
+
+                // 都道府県のチェック
+                const userAnswerPref = normalizeAnswer(prefInput.value.trim());
+                const correctAnswerPref = normalizeAnswer(p.name);
+                if (userAnswerPref && userAnswerPref === correctAnswerPref) {
+                    score++;
+                    prefInput.classList.add('correct');
+                    prefInput.classList.remove('incorrect');
+                } else {
+                    prefInput.classList.add('incorrect');
+                    prefInput.classList.remove('correct');
+                }
+
+                // 県庁所在地のチェック (もし有効なら)
+                if (includeCapital) {
+                     const userAnswerCap = capInput.value.trim();
+                     const correctAnswerCap = p.capital;
+                     if (userAnswerCap && userAnswerCap === correctAnswerCap) {
+                         score++;
+                         capInput.classList.add('correct');
+                         capInput.classList.remove('incorrect');
+                     } else {
+                         capInput.classList.add('incorrect');
+                         capInput.classList.remove('correct');
+                     }
+                }
+            });
+
+            scoreText.textContent = `${score} / ${totalQuestions}`;
+        };
+
+        const initGame = () => {
+            createMapNumbers();
+            createAnswerSheet();
+            const includeCapital = includeCapitalCheckbox.checked;
+            let totalQuestions = includeCapital ? 94 : 47;
+            scoreText.textContent = `0 / ${totalQuestions}`;
+        };
+
+        // Event Listeners
+        resetButton.addEventListener('click', initGame);
+        checkButton.addEventListener('click', checkAnswers);
+        includeCapitalCheckbox.addEventListener('change', () => {
+            const capitalInputs = document.querySelectorAll('input[data-type="capital"]');
+            capitalInputs.forEach(input => {
+                input.classList.toggle('hidden', !includeCapitalCheckbox.checked);
+            });
+            initGame(); // Reset score and inputs on mode change
+        });
+
+        // Initial setup
+        initGame();
+    </script>
+</body>
+</html>
+
