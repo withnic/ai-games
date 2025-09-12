@@ -55,6 +55,12 @@
             border-color: #ef4444; /* red-500 */
             background-color: #fef2f2; /* red-50 */
         }
+        .correct-answer {
+             color: #ef4444; /* red-500 */
+             font-size: 0.75rem; /* 12px */
+             font-weight: bold;
+             padding-left: 2px;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-4">
@@ -184,7 +190,9 @@
                 answerRow.innerHTML = `
                     <label for="pref-${i}" class="w-8 text-right font-bold text-gray-600">${i}.</label>
                     <div class="flex-grow">
+                        <div id="correct-pref-${i}" class="correct-answer hidden"></div>
                         <input type="text" id="pref-${i}" data-number="${i}" data-type="prefecture" class="answer-input w-full p-1 border-2 border-gray-300 rounded-md" placeholder="都道府県">
+                        <div id="correct-cap-${i}" class="correct-answer hidden mt-1"></div>
                         <input type="text" id="cap-${i}" data-number="${i}" data-type="capital" class="answer-input w-full p-1 border-2 border-gray-300 rounded-md mt-1 ${includeCapital ? '' : 'hidden'}" placeholder="県庁所在地">
                     </div>
                 `;
@@ -207,20 +215,27 @@
             const includeCapital = includeCapitalCheckbox.checked;
             let totalQuestions = includeCapital ? 94 : 47;
             
+            // 事前にすべての正解表示を隠す
+            document.querySelectorAll('.correct-answer').forEach(el => el.classList.add('hidden'));
+
             prefectures.forEach(p => {
                 const prefInput = document.getElementById(`pref-${p.number}`);
                 const capInput = document.getElementById(`cap-${p.number}`);
+                const correctPrefEl = document.getElementById(`correct-pref-${p.number}`);
+                const correctCapEl = document.getElementById(`correct-cap-${p.number}`);
 
                 // 都道府県のチェック
                 const userAnswerPref = normalizeAnswer(prefInput.value.trim());
                 const correctAnswerPref = normalizeAnswer(p.name);
                 if (userAnswerPref && userAnswerPref === correctAnswerPref) {
                     score++;
-                    prefInput.classList.add('correct');
                     prefInput.classList.remove('incorrect');
+                    prefInput.classList.add('correct');
                 } else {
-                    prefInput.classList.add('incorrect');
                     prefInput.classList.remove('correct');
+                    prefInput.classList.add('incorrect');
+                    correctPrefEl.textContent = `正解: ${p.name}`;
+                    correctPrefEl.classList.remove('hidden');
                 }
 
                 // 県庁所在地のチェック (もし有効なら)
@@ -229,11 +244,13 @@
                      const correctAnswerCap = p.capital;
                      if (userAnswerCap && userAnswerCap === correctAnswerCap) {
                          score++;
-                         capInput.classList.add('correct');
                          capInput.classList.remove('incorrect');
+                         capInput.classList.add('correct');
                      } else {
-                         capInput.classList.add('incorrect');
                          capInput.classList.remove('correct');
+                         capInput.classList.add('incorrect');
+                         correctCapEl.textContent = `正解: ${p.capital}`;
+                         correctCapEl.classList.remove('hidden');
                      }
                 }
             });
