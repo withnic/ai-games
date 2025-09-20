@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>囲碁ゲーム (9路盤)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --board-bg: #f3d19c;
+            --line-color: #8c6a46;
+        }
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+        }
+        .board {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            background-color: var(--board-bg);
+            border: 2px solid var(--line-color);
+            position: relative;
+            aspect-ratio: 1 / 1;
+            max-width: 90vw;
+            max-height: 90vh;
+            margin: auto;
+        }
+        .intersection-container {
+            position: relative;
+        }
+        .intersection {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 90%;
+            height: 90%;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            cursor: pointer;
+            z-index: 1;
+            transition: background-color 0.2s;
+        }
+        .intersection:hover {
+            background-color: rgba(0, 0, 0, 0.1);
+        }
+        .line {
+            background-color: var(--line-color);
+            position: absolute;
+            z-index: 0;
+        }
+        .h-line {
+            width: 100%;
+            height: 2px;
+            top: 50%;
+            left: 0;
+            transform: translateY(-50%);
+        }
+        .v-line {
+            width: 2px;
+            height: 100%;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        /* 線の端の調整 */
+        .intersection-container:first-child .v-line { left: 50%; width: 50%; }
+        .intersection-container:nth-child(9n + 1) .h-line { left: 50%; width: 50%; }
+        .intersection-container:last-child .v-line { left: 0; width: 50%; }
+        .intersection-container:nth-child(9n) .h-line { left: 0; width: 50%; }
+
+        .stone {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            box-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .black {
+            background: radial-gradient(circle at 35% 35%, #555, #000);
+        }
+        .white {
+            background: radial-gradient(circle at 35% 35%, #fff, #ccc);
+        }
+        .stone-number {
+            font-size: clamp(8px, 2.5vw, 14px);
+            font-weight: bold;
+            pointer-events: none;
+            line-height: 1;
+        }
+        .black > .stone-number {
+            color: white;
+            text-shadow: 0 0 2px rgba(0,0,0,0.9);
+        }
+        .white > .stone-number {
+            color: black;
+        }
+        .star {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 8px;
+            background-color: var(--line-color);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .last-move-marker {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 30%;
+            height: 30%;
+            border: 2px solid red;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+        .territory-black { background-color: rgba(0, 0, 0, 0.3); }
+        .territory-white { background-color: rgba(255, 255, 255, 0.4); }
+        
+        .modal {
+            display: none; /* Initially hidden */
+            z-index: 50; /* Ensure modal is on top */
+        }
+        .modal.show {
+            display: flex;
+        }
+        .playback-button {
+            padding: 0.5rem;
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-200 text-gray-800 flex items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-5xl mx-auto lg:flex lg:gap-8">
+        <!-- Control Panel -->
+        <div class="lg:w-1/3 bg-white p-6 rounded-lg shadow-lg mb-4 lg:mb-0">
+            <h1 class="text-3xl font-bold text-center mb-4">囲碁 (9路盤)</h1>
+            
+            <div class="space-y-4">
+                <div>
+                    <label for="difficulty" class="block text-sm font-medium text-gray-700">コンピュータの強さ:</label>
+                    <select id="difficulty" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md disabled:bg-gray-200">
+                        <option value="weak">よわい</option>
+                        <option value="easy">やさしい</option>
+                        <option value="normal">ふつう</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label for="handicap" class="block text-sm font-medium text-gray-700">ハンデ (置き石):</label>
+                    <select id="handicap" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md disabled:bg-gray-200">
+                        <option value="0">なし</option>
+                        <option value="2">2子</option>
+                        <option value="3">3子</option>
+                        <option value="4">4子</option>
+                        <option value="5">5子</option>
+                    </select>
+                </div>
+                
+                <div class="space-y-2 pt-2">
+                    <div class="relative flex items-start">
+                        <div class="flex items-center h-5">
+                            <input id="show-territory" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                        </div>
+                        <div class="ml-3 text-sm">
+                            <label for="show-territory" class="font-medium text-gray-700">領地を可視化する</label>
+                        </div>
+                    </div>
+                    <div class="relative flex items-start">
+                        <div class="flex items-center h-5">
+                            <input id="show-move-numbers" type="checkbox" class="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                        </div>
+                        <div class="ml-3 text-sm">
+                            <label for="show-move-numbers" class="font-medium text-gray-700">手数を表示する</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-2 gap-3">
+                <button id="start-reset-button" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">スタート</button>
+                <button id="pass-button" class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 transition-colors disabled:opacity-50" disabled>パス</button>
+            </div>
+            
+            <div class="mt-6 border-t pt-4">
+                <h2 class="text-lg font-semibold text-center mb-2">棋譜</h2>
+                <div class="grid grid-cols-4 gap-2 text-center">
+                    <button id="kifu-start" class="playback-button bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>最初へ</button>
+                    <button id="kifu-back" class="playback-button bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>一手戻る</button>
+                    <button id="kifu-forward" class="playback-button bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>一手進む</button>
+                    <button id="kifu-end" class="playback-button bg-gray-200 rounded-md hover:bg-gray-300 disabled:opacity-50" disabled>最新へ</button>
+                </div>
+                <div class="mt-3 grid grid-cols-2 gap-3">
+                    <button id="study-from-here" class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition-colors disabled:opacity-50" disabled>ここから研究</button>
+                    <button id="kifu-download" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50" disabled>ダウンロード</button>
+                </div>
+                <div class="mt-3">
+                    <label for="kifu-upload" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 transition-colors text-center cursor-pointer block">アップロード</label>
+                    <input type="file" id="kifu-upload" class="hidden" accept=".json">
+                </div>
+            </div>
+
+            <div id="info-panel" class="mt-6 p-4 bg-gray-100 rounded-lg text-center">
+                <div id="turn-indicator" class="text-lg font-bold"></div>
+                <div class="mt-2 flex justify-around">
+                    <div>黒のハマ: <span id="black-captures">0</span></div>
+                    <div>白のハマ: <span id="white-captures">0</span></div>
+                </div>
+                <div id="message" class="mt-2 h-6 text-sm text-red-600"></div>
+            </div>
+        </div>
+
+        <!-- Go Board -->
+        <div class="lg:w-2/3">
+            <div class="board" id="board"></div>
+        </div>
+    </div>
+
+    <!-- Result Modal -->
+    <div id="result-modal" class="modal fixed inset-0 bg-black bg-opacity-50 items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-sm w-full">
+            <h2 id="result-title" class="text-2xl font-bold text-center mb-4"></h2>
+            <div id="result-details" class="text-center mb-6"></div>
+            <div class="space-y-3">
+                 <button id="study-from-result-button" class="w-full bg-yellow-500 text-white py-2 px-4 rounded-md hover:bg-yellow-600 transition-colors">この局面から研究</button>
+                 <button id="download-from-result-button" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition-colors">この棋譜をダウンロード</button>
+                 <button id="close-modal-button" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 transition-colors">新しく始める</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const BOARD_SIZE = 9;
+            const STAR_POINTS = [[2, 2], [2, 6], [4, 4], [6, 2], [6, 6]];
+
+            let boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+            let currentPlayer = 1; // 1: black, 2: white
+            let captures = { 1: 0, 2: 0 };
+            let passCount = 0;
+            let gameOver = false;
+            let koState = null; // {x, y}
+            let lastMove = null;
+            let gameStarted = false;
+            let isStudyMode = false;
+            let gameHistory = [];
+            let playbackIndex = -1;
+
+            const boardElement = document.getElementById('board');
+            const turnIndicator = document.getElementById('turn-indicator');
+            const blackCapturesElement = document.getElementById('black-captures');
+            const whiteCapturesElement = document.getElementById('white-captures');
+            const messageElement = document.getElementById('message');
+            const startResetButton = document.getElementById('start-reset-button');
+            const passButton = document.getElementById('pass-button');
+            const difficultySelect = document.getElementById('difficulty');
+            const handicapSelect = document.getElementById('handicap');
+            const showTerritoryCheckbox = document.getElementById('show-territory');
+            const showMoveNumbersCheckbox = document.getElementById('show-move-numbers');
+
+            const resultModal = document.getElementById('result-modal');
+            const resultTitle = document.getElementById('result-title');
+            const resultDetails = document.getElementById('result-details');
+            const closeModalButton = document.getElementById('close-modal-button');
+            const studyFromResultBtn = document.getElementById('study-from-result-button');
+            const downloadFromResultBtn = document.getElementById('download-from-result-button');
+            
+            const kifuStartBtn = document.getElementById('kifu-start');
+            const kifuBackBtn = document.getElementById('kifu-back');
+            const kifuForwardBtn = document.getElementById('kifu-forward');
+            const kifuEndBtn = document.getElementById('kifu-end');
+            const kifuDownloadBtn = document.getElementById('kifu-download');
+            const kifuUploadInput = document.getElementById('kifu-upload');
+            const studyFromHereBtn = document.getElementById('study-from-here');
+
+            function initializeGame() {
+                gameStarted = false;
+                isStudyMode = false;
+                boardState = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+                currentPlayer = 1;
+                captures = { 1: 0, 2: 0 };
+                passCount = 0;
+                gameOver = false;
+                koState = null;
+                lastMove = null;
+                gameHistory = [];
+                playbackIndex = -1;
+                
+                const handicap = parseInt(handicapSelect.value);
+                if (handicap > 0) {
+                    const handicapPoints = [[6,2], [2,6], [6,6], [2,2], [4,4]];
+                    for(let i=0; i<handicap; i++){
+                         if(i < handicapPoints.length){
+                            const [x,y] = handicapPoints[i];
+                             boardState[y][x] = 1;
+                         }
+                    }
+                    currentPlayer = 2;
+                }
+                
+                startResetButton.textContent = 'スタート';
+                passButton.disabled = true;
+                difficultySelect.disabled = false;
+                handicapSelect.disabled = false;
+                updateKifuButtons();
+                drawBoard();
+                updateInfo();
+            }
+            
+            function startGame() {
+                if (gameStarted) return;
+                gameStarted = true;
+                playbackIndex = gameHistory.length - 1;
+
+                startResetButton.textContent = 'リセット';
+                passButton.disabled = false;
+                difficultySelect.disabled = true;
+                handicapSelect.disabled = true;
+                
+                updateKifuButtons();
+                updateInfo();
+
+                if (!isUsersTurn() && !isStudyMode) {
+                    setTimeout(computerMove, 500);
+                }
+            }
+
+            function drawBoard() {
+                boardElement.innerHTML = '';
+                const currentBoardToDraw = boardState;
+                const currentLastMove = (playbackIndex >= 0 && playbackIndex < gameHistory.length) ? gameHistory[playbackIndex] : null;
+                
+                const showMoveNumbers = showMoveNumbersCheckbox.checked;
+                let moveNumberBoard;
+                if (showMoveNumbers) {
+                    moveNumberBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+                    for (let i = 0; i <= playbackIndex; i++) {
+                        const move = gameHistory[i];
+                        if (move && !move.pass) {
+                            moveNumberBoard[move.y][move.x] = i + 1;
+                        }
+                    }
+                }
+
+
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    for (let x = 0; x < BOARD_SIZE; x++) {
+                        const container = document.createElement('div');
+                        container.classList.add('intersection-container');
+
+                        const vLine = document.createElement('div'); vLine.classList.add('line', 'v-line');
+                        const hLine = document.createElement('div'); hLine.classList.add('line', 'h-line');
+                        container.appendChild(vLine); container.appendChild(hLine);
+
+                        if (STAR_POINTS.some(p => p[0] === x && p[1] === y)) {
+                            const star = document.createElement('div'); star.classList.add('star');
+                            container.appendChild(star);
+                        }
+
+                        const intersection = document.createElement('div');
+                        intersection.classList.add('intersection');
+                        intersection.dataset.x = x; intersection.dataset.y = y;
+
+                        if (currentBoardToDraw[y][x] !== 0) {
+                            const stone = document.createElement('div');
+                            stone.classList.add('stone', currentBoardToDraw[y][x] === 1 ? 'black' : 'white');
+                            
+                            if (showMoveNumbers && moveNumberBoard[y][x] > 0) {
+                                const numberSpan = document.createElement('span');
+                                numberSpan.classList.add('stone-number');
+                                numberSpan.textContent = moveNumberBoard[y][x];
+                                stone.appendChild(numberSpan);
+                            }
+
+                            intersection.appendChild(stone);
+                            intersection.style.cursor = 'not-allowed';
+                        }
+                        
+                        if (currentLastMove && !currentLastMove.pass && currentLastMove.x === x && currentLastMove.y === y) {
+                            const marker = document.createElement('div');
+                            marker.classList.add('last-move-marker');
+                            intersection.appendChild(marker);
+                        }
+
+                        container.appendChild(intersection);
+                        boardElement.appendChild(container);
+                    }
+                }
+                if (showTerritoryCheckbox.checked) {
+                    displayTerritory();
+                }
+            }
+
+            function updateInfo() {
+                const isPlayback = playbackIndex < gameHistory.length -1;
+                let turnPlayer = currentPlayer;
+                 if(isPlayback && playbackIndex > -1 && gameHistory[playbackIndex]){
+                    turnPlayer = gameHistory[playbackIndex].player === 1 ? 2 : 1;
+                }
+
+                if (!gameStarted) {
+                    turnIndicator.textContent = '設定後、スタートを押してください';
+                } else if (gameOver) {
+                    turnIndicator.textContent = "ゲーム終了";
+                } else if(isPlayback) {
+                    turnIndicator.textContent = `棋譜再生中 (${playbackIndex + 1}手目)`;
+                } else if (isStudyMode) {
+                    turnIndicator.textContent = `${turnPlayer === 1 ? '黒' : '白'}の番 (研究モード)`;
+                } else {
+                    turnIndicator.textContent = `${turnPlayer === 1 ? '黒' : '白'}の番です`;
+                }
+                blackCapturesElement.textContent = captures[1];
+                whiteCapturesElement.textContent = captures[2];
+            }
+            
+            function updateKifuButtons() {
+                const hasHistory = gameHistory.length > 0;
+                kifuDownloadBtn.disabled = !hasHistory;
+                kifuStartBtn.disabled = !hasHistory || playbackIndex <= -1;
+                kifuBackBtn.disabled = !hasHistory || playbackIndex <= -1;
+                kifuForwardBtn.disabled = !hasHistory || playbackIndex >= gameHistory.length - 1;
+                kifuEndBtn.disabled = !hasHistory || playbackIndex >= gameHistory.length - 1;
+                studyFromHereBtn.disabled = !gameStarted || playbackIndex < 0;
+            }
+
+            function isUsersTurn() {
+                if (isStudyMode) return true;
+                return currentPlayer === 1;
+            }
+
+            function handleIntersectionClick(e) {
+                if (gameOver || !gameStarted || !isUsersTurn() || !e.target.classList.contains('intersection')) return;
+                
+                if (playbackIndex < gameHistory.length - 1 && !isStudyMode) {
+                    showMessage("最新の局面でのみ着手できます。「最新へ」を押してください。");
+                    return;
+                }
+
+                const x = parseInt(e.target.dataset.x);
+                const y = parseInt(e.target.dataset.y);
+
+                if (isValidMove(x, y, currentPlayer)) {
+                    placeStone(x, y, currentPlayer);
+                }
+            }
+            
+            function placeStone(x, y, player) {
+                if (isStudyMode && playbackIndex < gameHistory.length - 1) {
+                    gameHistory.splice(playbackIndex + 1);
+                }
+
+                const tempBoard = JSON.parse(JSON.stringify(boardState));
+                tempBoard[y][x] = player;
+
+                const opponent = player === 1 ? 2 : 1;
+                const capturedStones = checkAndRemoveCapturedGroups(x, y, tempBoard, opponent);
+                const capturedInThisMove = capturedStones.length;
+
+                if (capturedInThisMove === 0) {
+                    if (countLiberties(findGroup(x, y, tempBoard), tempBoard) === 0) {
+                         showMessage("そこは着手禁止点です。");
+                         return;
+                    }
+                }
+                
+                boardState[y][x] = player;
+                capturedStones.forEach(({ x: cx, y: cy }) => boardState[cy][cx] = 0);
+                captures[player] += capturedInThisMove;
+
+                if (capturedInThisMove === 1 && isKo(x, y, boardState)) {
+                    koState = { x: capturedStones[0].x, y: capturedStones[0].y };
+                } else {
+                    koState = null;
+                }
+                
+                const move = {x, y, player};
+                gameHistory.push(move);
+                playbackIndex = gameHistory.length - 1;
+                lastMove = move;
+
+                passCount = 0;
+                switchPlayer();
+            }
+
+            function handlePass() {
+                // コンピュータもパスできるように isUsersTurn() のチェックをここから削除
+                if (gameOver || !gameStarted) return;
+
+                // このチェックは、棋譜再生中にユーザーが古い局面でパスしようとした場合のみに限定
+                if (isUsersTurn() && playbackIndex < gameHistory.length - 1 && !isStudyMode) {
+                    showMessage("最新の局面でのみパスできます。「最新へ」を押してください。");
+                    return;
+                }
+                
+                passCount++;
+                showMessage(`${currentPlayer === 1 ? '黒' : '白'}がパスしました。`, false);
+                const move = {pass: true, player: currentPlayer};
+                gameHistory.push(move); 
+                playbackIndex = gameHistory.length - 1;
+                lastMove = move;
+
+                if (passCount >= 2) {
+                    endGame();
+                } else {
+                    switchPlayer();
+                }
+            }
+
+            function switchPlayer() {
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+                updateInfo();
+                drawBoard();
+                updateKifuButtons();
+
+                if (!gameOver && !isUsersTurn() && !isStudyMode) {
+                    setTimeout(computerMove, 500);
+                }
+            }
+            
+            function navigateToMove(index) {
+                if (index < -1 || index >= gameHistory.length) return;
+                
+                playbackIndex = index;
+                
+                const newBoard = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(0));
+                const newCaptures = { 1: 0, 2: 0 };
+
+                const handicap = parseInt(handicapSelect.value);
+                if (handicap > 0) {
+                    const handicapPoints = [[6,2], [2,6], [6,6], [2,2], [4,4]];
+                    for(let i=0; i<handicap; i++){
+                        if(i < handicapPoints.length) newBoard[handicapPoints[i][1]][handicapPoints[i][0]] = 1;
+                    }
+                }
+
+                for (let i = 0; i <= index; i++) {
+                    const move = gameHistory[i];
+                    if (move.pass) continue;
+                    
+                    newBoard[move.y][move.x] = move.player;
+                    const opponent = move.player === 1 ? 2 : 1;
+                    const capturedStones = checkAndRemoveCapturedGroups(move.x, move.y, newBoard, opponent);
+                    capturedStones.forEach(({x,y}) => newBoard[y][x] = 0);
+                    newCaptures[move.player] += capturedStones.length;
+                }
+                
+                boardState = newBoard;
+                captures = newCaptures;
+                
+                if (index > -1) {
+                    currentPlayer = gameHistory[index].player === 1 ? 2 : 1;
+                } else {
+                     currentPlayer = (handicap > 0) ? 2 : 1;
+                }
+
+                drawBoard();
+                updateInfo();
+                updateKifuButtons();
+            }
+            
+            function downloadKifu() {
+                const data = {
+                    handicap: parseInt(handicapSelect.value),
+                    moves: gameHistory
+                };
+                const jsonString = JSON.stringify(data, null, 2);
+                const blob = new Blob([jsonString], {type: "application/json"});
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'go_kifu.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }
+            
+            function uploadKifu(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (!data.hasOwnProperty('handicap') || !Array.isArray(data.moves)) {
+                            throw new Error('Invalid kifu file format.');
+                        }
+                        
+                        resultModal.classList.remove('show');
+                        initializeGame(); 
+                        
+                        handicapSelect.value = data.handicap;
+                        gameHistory = data.moves;
+                        
+                        navigateToMove(gameHistory.length - 1);
+                        startGame();
+                        
+                        showMessage("棋譜をロードしました。", false);
+
+                    } catch (error) {
+                        showMessage("棋譜ファイルの読み込みに失敗しました。");
+                        console.error(error);
+                    } finally {
+                        event.target.value = '';
+                    }
+                };
+                reader.readAsText(file);
+            }
+
+            function startStudyMode() {
+                if (!gameStarted || playbackIndex < 0) return;
+                isStudyMode = true;
+                gameOver = false;
+                passButton.disabled = false;
+                difficultySelect.disabled = true;
+                handicapSelect.disabled = true;
+
+                updateInfo();
+                showMessage("研究モードを開始しました。自由に検討してください。", false);
+            }
+
+            // --- Core Go Logic (mostly unchanged) ---
+            function findGroup(startX, startY, board) { /* ... */ return []; }
+            function countLiberties(group, board) { /* ... */ return 0; }
+            function checkAndRemoveCapturedGroups(lastMoveX, lastMoveY, board, opponent) { /* ... */ return []; }
+            function isKo(x, y, board) { /* ... */ return false; }
+            function endGame() { /* ... */ }
+            function calculateFinalScore() { /* ... */ }
+            function calculateTerritory() { /* ... */ return { black: 0, white: 0 }; }
+            function displayTerritory() { /* ... */ }
+            function computerMove() { /* ... */ }
+            function getValidMoves(player) { /* ... */ return []; }
+            function findBestMove(moves, player, difficulty) { /* ... */ return null; }
+            function isValidMove(x, y, player) { /* ... */ return true; }
+            function showMessage(msg, isError = true) {
+                messageElement.textContent = msg;
+                messageElement.style.color = isError ? '#dc2626' : '#16a34a';
+                setTimeout(() => messageElement.textContent = '', 3000);
+            }
+            
+            // --- Re-paste full function bodies for core logic ---
+            findGroup = function(startX, startY, board) {
+                const color = board[startY][startX]; if (color === 0) return [];
+                const q = [{ x: startX, y: startY }]; const visited = new Set([`${startX},${startY}`]); const group = [];
+                while (q.length > 0) {
+                    const { x, y } = q.shift(); group.push({ x, y });
+                    [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && !visited.has(`${nx},${ny}`) && board[ny][nx] === color) {
+                            visited.add(`${nx},${ny}`); q.push({ x: nx, y: ny });
+                        }
+                    });
+                } return group;
+            };
+            countLiberties = function(group, board) {
+                const liberties = new Set();
+                group.forEach(({x, y}) => {
+                    [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                        const nx = x + dx, ny = y + dy;
+                        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny][nx] === 0) liberties.add(`${nx},${ny}`);
+                    });
+                }); return liberties.size;
+            };
+            checkAndRemoveCapturedGroups = function(lastMoveX, lastMoveY, board, opponent) {
+                let totalCaptured = [];
+                [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                    const nx = lastMoveX + dx, ny = lastMoveY + dy;
+                    if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && board[ny][nx] === opponent) {
+                        const group = findGroup(nx, ny, board);
+                        if(countLiberties(group, board) === 0) totalCaptured = totalCaptured.concat(group);
+                    }
+                }); return totalCaptured;
+            };
+            isKo = function(x, y, board) {
+                if (!lastMove) return false;
+                const group = findGroup(x, y, board); if (group.length !== 1) return false;
+                return countLiberties(group, board) === 1;
+            };
+            isValidMove = function(x, y, player) {
+                if (x < 0 || x >= BOARD_SIZE || y < 0 || y >= BOARD_SIZE || boardState[y][x] !== 0) return false;
+                if (koState && koState.x === x && koState.y === y) { showMessage("コウです。"); return false; }
+                const tempBoard = JSON.parse(JSON.stringify(boardState)); tempBoard[y][x] = player;
+                const captured = checkAndRemoveCapturedGroups(x, y, tempBoard, player === 1 ? 2 : 1);
+                if (captured.length === 0 && countLiberties(findGroup(x, y, tempBoard), tempBoard) === 0) {
+                    showMessage("そこは着手禁止点です。"); return false;
+                }
+                return true;
+            };
+            endGame = function() { gameOver = true; calculateFinalScore(); };
+            calculateFinalScore = function() {
+                const territory = calculateTerritory();
+                const scores = { 1: captures[1] + territory.black, 2: captures[2] + territory.white + 6.5 };
+                resultDetails.innerHTML = `<p>黒: ${territory.black} (地) + ${captures[1]} (ハマ) = ${scores[1].toFixed(1)}</p><p>白: ${territory.white} (地) + ${captures[2]} (ハマ) + 6.5 (コミ) = ${scores[2].toFixed(1)}</p>`;
+                resultTitle.textContent = (scores[1] > scores[2]) ? `黒の ${(scores[1] - scores[2]).toFixed(1)} 目勝ち` : `白の ${(scores[2] - scores[1]).toFixed(1)} 目勝ち`;
+                resultModal.classList.add('show'); updateInfo();
+            };
+            calculateTerritory = function() {
+                const visited = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(false));
+                let territory = { black: 0, white: 0 };
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    for (let x = 0; x < BOARD_SIZE; x++) {
+                        if (boardState[y][x] === 0 && !visited[y][x]) {
+                            const q = [{ x, y }]; visited[y][x] = true; const region = [];
+                            let touchesBlack = false, touchesWhite = false;
+                            while (q.length > 0) {
+                                const curr = q.shift(); region.push(curr);
+                                [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                                    const nx = curr.x + dx, ny = curr.y + dy;
+                                    if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+                                        if (boardState[ny][nx] === 0 && !visited[ny][nx]) { visited[ny][nx] = true; q.push({ x: nx, y: ny }); }
+                                        else if (boardState[ny][nx] === 1) touchesBlack = true;
+                                        else if (boardState[ny][nx] === 2) touchesWhite = true;
+                                    }
+                                });
+                            }
+                            if (touchesBlack && !touchesWhite) territory.black += region.length;
+                            else if (!touchesBlack && touchesWhite) territory.white += region.length;
+                        }
+                    }
+                } return territory;
+            };
+            displayTerritory = function() {
+                document.querySelectorAll('.intersection').forEach(el => el.classList.remove('territory-black', 'territory-white'));
+                if (!showTerritoryCheckbox.checked || gameOver) return;
+                 const visited = Array(BOARD_SIZE).fill(null).map(() => Array(BOARD_SIZE).fill(false));
+
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    for (let x = 0; x < BOARD_SIZE; x++) {
+                         if (boardState[y][x] === 0 && !visited[y][x]) {
+                            const q = [{ x, y }];
+                            visited[y][x] = true;
+                            const region = [];
+                            let touchesBlack = false;
+                            let touchesWhite = false;
+
+                             while (q.length > 0) {
+                                const curr = q.shift();
+                                region.push(curr);
+
+                                 [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                                    const nx = curr.x + dx;
+                                    const ny = curr.y + dy;
+                                    if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE) {
+                                        if (boardState[ny][nx] === 0 && !visited[ny][nx]) {
+                                            visited[ny][nx] = true;
+                                            q.push({ x: nx, y: ny });
+                                        } else if (boardState[ny][nx] === 1) {
+                                            touchesBlack = true;
+                                        } else if (boardState[ny][nx] === 2) {
+                                            touchesWhite = true;
+                                        }
+                                    }
+                                });
+                            }
+                            if (touchesBlack && !touchesWhite) {
+                                region.forEach(pt => {
+                                    const el = document.querySelector(`.intersection[data-x='${pt.x}'][data-y='${pt.y}']`);
+                                    if(el) el.classList.add('territory-black');
+                                });
+                            } else if (!touchesBlack && touchesWhite) {
+                                region.forEach(pt => {
+                                    const el = document.querySelector(`.intersection[data-x='${pt.x}'][data-y='${pt.y}']`);
+                                    if(el) el.classList.add('territory-white');
+                                });
+                            }
+                         }
+                    }
+                }
+            };
+            computerMove = function() {
+                if(gameOver || !gameStarted) return;
+                const validMoves = getValidMoves(currentPlayer);
+                if (validMoves.length === 0) { handlePass(); return; }
+                const difficulty = difficultySelect.value;
+                const move = (difficulty === 'weak') ? validMoves[Math.floor(Math.random() * validMoves.length)] : findBestMove(validMoves, currentPlayer, difficulty);
+                if (move) placeStone(move.x, move.y, currentPlayer);
+                else handlePass();
+            };
+            getValidMoves = function(player) {
+                const moves = [];
+                for (let y = 0; y < BOARD_SIZE; y++) {
+                    for (let x = 0; x < BOARD_SIZE; x++) {
+                        if (boardState[y][x] === 0) {
+                            if (koState && koState.x === x && koState.y === y) continue;
+                            const tempBoard = JSON.parse(JSON.stringify(boardState)); tempBoard[y][x] = player;
+                            const captured = checkAndRemoveCapturedGroups(x, y, tempBoard, player === 1 ? 2 : 1);
+                            if (captured.length === 0 && countLiberties(findGroup(x, y, tempBoard), tempBoard) === 0) continue;
+                            moves.push({ x, y });
+                        }
+                    }
+                } return moves;
+            };
+            findBestMove = function(moves, player, difficulty) {
+                const opponent = player === 1 ? 2 : 1; let bestMoves = []; let maxScore = -Infinity;
+                for (const move of moves) {
+                    let score = Math.random() * 0.5; const tempBoard = JSON.parse(JSON.stringify(boardState));
+                    tempBoard[move.y][move.x] = player;
+                    const captured = checkAndRemoveCapturedGroups(move.x, move.y, tempBoard, opponent); score += captured.length * 10;
+                    [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                        const nx = move.x + dx, ny = move.y + dy;
+                        if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && tempBoard[ny][nx] === player) {
+                            const group = findGroup(nx, ny, tempBoard);
+                            if (countLiberties(group, boardState) === 1 && countLiberties(group, tempBoard) > 1) score += 8;
+                        }
+                    });
+                    if (countLiberties(findGroup(move.x, move.y, tempBoard), tempBoard) === 1) score -= 9;
+                    if (difficulty === 'normal') {
+                        const nextBoardState = JSON.parse(JSON.stringify(tempBoard));
+                        captured.forEach(({x,y}) => nextBoardState[y][x] = 0);
+                        [[0,1], [0,-1], [1,0], [-1,0]].forEach(([dx, dy]) => {
+                            const nx = move.x + dx;
+                            const ny = move.y + dy;
+                            if (nx >= 0 && nx < BOARD_SIZE && ny >= 0 && ny < BOARD_SIZE && nextBoardState[ny][nx] === opponent) {
+                                const group = findGroup(nx, ny, nextBoardState);
+                                if (countLiberties(group, nextBoardState) === 1) {
+                                    score += 7;
+                                }
+                            }
+                        });
+                    }
+                    if (score > maxScore) { maxScore = score; bestMoves = [move]; } else if (score === maxScore) bestMoves.push(move);
+                }
+                if (difficulty === 'easy' && Math.random() < 0.3) return moves[Math.floor(Math.random() * moves.length)];
+                return bestMoves.length > 0 ? bestMoves[Math.floor(Math.random() * bestMoves.length)] : null;
+            };
+
+
+            // Event Listeners
+            boardElement.addEventListener('click', handleIntersectionClick);
+
+            startResetButton.addEventListener('click', () => {
+                if (!gameStarted) startGame();
+                else { resultModal.classList.remove('show'); initializeGame(); }
+            });
+            passButton.addEventListener('click', handlePass);
+            closeModalButton.addEventListener('click', () => {
+                resultModal.classList.remove('show'); initializeGame();
+            });
+            downloadFromResultBtn.addEventListener('click', () => {
+                downloadKifu();
+            });
+            studyFromResultBtn.addEventListener('click', () => {
+                resultModal.classList.remove('show');
+                navigateToMove(gameHistory.length - 1);
+                startStudyMode();
+            });
+            difficultySelect.addEventListener('change', initializeGame);
+            handicapSelect.addEventListener('change', initializeGame);
+            showTerritoryCheckbox.addEventListener('change', drawBoard);
+            showMoveNumbersCheckbox.addEventListener('change', drawBoard);
+
+            kifuStartBtn.addEventListener('click', () => navigateToMove(-1));
+            kifuBackBtn.addEventListener('click', () => navigateToMove(playbackIndex - 1));
+            kifuForwardBtn.addEventListener('click', () => navigateToMove(playbackIndex + 1));
+            kifuEndBtn.addEventListener('click', () => navigateToMove(gameHistory.length - 1));
+            kifuDownloadBtn.addEventListener('click', downloadKifu);
+            kifuUploadInput.addEventListener('change', uploadKifu);
+            studyFromHereBtn.addEventListener('click', startStudyMode);
+
+            initializeGame();
+        });
+    </script>
+</body>
+</html>
+
