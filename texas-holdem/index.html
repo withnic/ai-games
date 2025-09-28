@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>テキサスホールデム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            touch-action: manipulation;
+        }
+        .card {
+            width: 80px;
+            height: 112px;
+            border: 1px solid #333;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 4px;
+            font-size: 20px;
+            font-weight: bold;
+            background-color: white;
+            box-shadow: 2px 2px 5px rgba(0,0,0,0.2);
+            user-select: none;
+        }
+        .card.red { color: #DC2626; }
+        .card.black { color: #171717; }
+        .card .suit { font-size: 16px; }
+        .card-back {
+            background: repeating-linear-gradient(
+                45deg,
+                #4B5563,
+                #4B5563 10px,
+                #6B7280 10px,
+                #6B7280 20px
+            );
+        }
+        .player-area, .cpu-area, .community-area {
+            min-height: 120px;
+        }
+        .chip {
+            border-radius: 50%;
+            padding: 2px 8px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+        .dealer-button {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background-color: #FEF08A;
+            color: #713F12;
+            border: 2px solid #A16207;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-800 text-white p-4 flex items-center justify-center min-h-screen">
+
+    <div id="game-board" class="w-full max-w-4xl mx-auto p-4 rounded-lg bg-green-800 border-4 border-yellow-800 shadow-2xl relative">
+
+        <!-- CPU Area -->
+        <div class="cpu-area text-center mb-4 relative">
+            <h2 id="cpu-name" class="text-xl font-bold mb-2">CPU</h2>
+            <div class="flex justify-center items-center space-x-2">
+                <div id="cpu-dealer-button" class="dealer-button hidden">D</div>
+                <div id="cpu-hand" class="flex space-x-2"></div>
+            </div>
+            <div class="absolute top-0 left-0">
+                <div id="cpu-stack" class="text-lg font-semibold"></div>
+                <div id="cpu-bet" class="text-md font-semibold text-yellow-300"></div>
+                 <div id="cpu-hand-rank" class="text-sm font-semibold text-cyan-300"></div>
+            </div>
+        </div>
+
+        <!-- Community Area -->
+        <div class="community-area text-center my-4 py-4 border-y-2 border-green-700">
+            <div id="community-cards" class="flex justify-center space-x-2 mb-2"></div>
+            <div class="font-bold text-2xl">Pot: <span id="pot-amount">0</span></div>
+        </div>
+
+        <!-- Player Area -->
+        <div class="player-area text-center mt-4 relative">
+             <div class="absolute bottom-0 right-0">
+                <div id="player-stack" class="text-lg font-semibold"></div>
+                <div id="player-bet" class="text-md font-semibold text-yellow-300"></div>
+                <div id="player-hand-rank" class="text-sm font-semibold text-cyan-300"></div>
+            </div>
+            <div class="flex justify-center items-center space-x-2">
+                <div id="player-dealer-button" class="dealer-button hidden">D</div>
+                <div id="player-hand" class="flex space-x-2"></div>
+            </div>
+            <h2 id="player-name" class="text-xl font-bold mt-2">Player</h2>
+        </div>
+
+        <!-- Action Panel -->
+        <div id="action-panel" class="mt-6 flex flex-col md:flex-row justify-center items-center space-y-2 md:space-y-0 md:space-x-4">
+            <button id="fold-button" class="w-full md:w-28 px-4 py-2 bg-red-600 hover:bg-red-700 rounded-lg font-bold text-lg shadow-md transition-transform transform hover:scale-105">フォールド</button>
+            <button id="check-call-button" class="w-full md:w-28 px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-bold text-lg shadow-md transition-transform transform hover:scale-105">チェック</button>
+            <div class="flex items-center space-x-2 w-full md:w-auto">
+                 <button id="bet-raise-button" class="w-full md:w-28 px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-gray-900 rounded-lg font-bold text-lg shadow-md transition-transform transform hover:scale-105">ベット</button>
+                 <input type="number" id="bet-amount-input" class="w-24 bg-gray-700 text-white p-2 rounded-lg text-center" value="20" min="20">
+            </div>
+        </div>
+        
+        <!-- Next Hand Button -->
+        <div id="next-hand-panel" class="mt-6 text-center hidden">
+             <button id="next-hand-button" class="px-6 py-3 bg-green-600 hover:bg-green-700 rounded-lg font-bold text-xl shadow-md transition-transform transform hover:scale-105">次のハンドへ</button>
+        </div>
+
+        <!-- Message Overlay -->
+        <div id="message-overlay" class="absolute inset-0 bg-black bg-opacity-60 flex items-center justify-center hidden">
+            <div id="message-text" class="text-4xl font-bold text-center p-8 rounded-lg bg-gray-900 bg-opacity-80 shadow-xl"></div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- DOM要素 ---
+        const playerHandEl = document.getElementById('player-hand');
+        const cpuHandEl = document.getElementById('cpu-hand');
+        const communityCardsEl = document.getElementById('community-cards');
+        const playerStackEl = document.getElementById('player-stack');
+        const cpuStackEl = document.getElementById('cpu-stack');
+        const playerBetEl = document.getElementById('player-bet');
+        const cpuBetEl = document.getElementById('cpu-bet');
+        const potAmountEl = document.getElementById('pot-amount');
+        const playerHandRankEl = document.getElementById('player-hand-rank');
+        const cpuHandRankEl = document.getElementById('cpu-hand-rank');
+        const playerDealerBtn = document.getElementById('player-dealer-button');
+        const cpuDealerBtn = document.getElementById('cpu-dealer-button');
+
+        const actionPanel = document.getElementById('action-panel');
+        const nextHandPanel = document.getElementById('next-hand-panel');
+        const foldButton = document.getElementById('fold-button');
+        const checkCallButton = document.getElementById('check-call-button');
+        const betRaiseButton = document.getElementById('bet-raise-button');
+        const betAmountInput = document.getElementById('bet-amount-input');
+        const nextHandButton = document.getElementById('next-hand-button');
+        
+        const messageOverlay = document.getElementById('message-overlay');
+        const messageText = document.getElementById('message-text');
+
+        // --- ゲーム設定 ---
+        const STARTING_STACK = 1000;
+        const SMALL_BLIND = 10;
+        const BIG_BLIND = 20;
+
+        // --- カード定義 ---
+        const SUITS = ['♠', '♥', '♦', '♣'];
+        const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
+        const RANK_VALUES = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, 'T': 10, 'J': 11, 'Q': 12, 'K': 13, 'A': 14 };
+
+        // --- ゲーム状態 ---
+        let gameState = {};
+
+        function initGameState() {
+            gameState = {
+                deck: [],
+                player: {
+                    hand: [],
+                    stack: STARTING_STACK,
+                    bet: 0,
+                    isDealer: true,
+                    isAllIn: false,
+                },
+                cpu: {
+                    hand: [],
+                    stack: STARTING_STACK,
+                    bet: 0,
+                    isDealer: false,
+                    isAllIn: false,
+                },
+                communityCards: [],
+                pot: 0,
+                phase: 'pre-deal', // pre-deal, pre-flop, flop, turn, river, showdown
+                currentBet: 0,
+                lastRaiser: null,
+                turn: null, // 'player' or 'cpu'
+            };
+        }
+        
+        // --- カードとデッキのロジック ---
+        function createDeck() {
+            const deck = [];
+            for (const suit of SUITS) {
+                for (const rank of RANKS) {
+                    deck.push({ rank, suit, value: RANK_VALUES[rank] });
+                }
+            }
+            return deck;
+        }
+
+        function shuffleDeck(deck) {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+        }
+        
+        // --- UI更新 ---
+        function createCardDOM(card, isFaceDown = false) {
+            const cardEl = document.createElement('div');
+            if (isFaceDown) {
+                cardEl.className = 'card card-back';
+                return cardEl;
+            }
+            const color = (card.suit === '♥' || card.suit === '♦') ? 'red' : 'black';
+            cardEl.className = `card ${color}`;
+            cardEl.innerHTML = `
+                <div class="text-left">
+                    <div>${card.rank}</div>
+                    <div class="suit">${card.suit}</div>
+                </div>
+                <div class="text-right transform rotate-180">
+                    <div>${card.rank}</div>
+                    <div class="suit">${card.suit}</div>
+                </div>
+            `;
+            return cardEl;
+        }
+
+        function updateUI() {
+            // プレイヤー
+            playerHandEl.innerHTML = '';
+            gameState.player.hand.forEach(card => playerHandEl.appendChild(createCardDOM(card)));
+            playerStackEl.textContent = `スタック: ${gameState.player.stack}`;
+            playerBetEl.textContent = `ベット: ${gameState.player.bet}`;
+            playerDealerBtn.classList.toggle('hidden', !gameState.player.isDealer);
+
+            // CPU
+            cpuHandEl.innerHTML = '';
+            gameState.cpu.hand.forEach(card => {
+                const isFaceDown = gameState.phase !== 'showdown';
+                cpuHandEl.appendChild(createCardDOM(card, isFaceDown));
+            });
+            cpuStackEl.textContent = `スタック: ${gameState.cpu.stack}`;
+            cpuBetEl.textContent = `ベット: ${gameState.cpu.bet}`;
+            cpuDealerBtn.classList.toggle('hidden', !gameState.cpu.isDealer);
+
+            // テーブル
+            communityCardsEl.innerHTML = '';
+            gameState.communityCards.forEach(card => communityCardsEl.appendChild(createCardDOM(card)));
+            potAmountEl.textContent = gameState.pot;
+            
+            // 手役ランク
+            if (gameState.phase === 'showdown' || (gameState.phase !== 'pre-flop' && gameState.phase !== 'pre-deal')) {
+                const playerBestHand = getBestHand([...gameState.player.hand, ...gameState.communityCards]);
+                const cpuBestHand = getBestHand([...gameState.cpu.hand, ...gameState.communityCards]);
+                playerHandRankEl.textContent = playerBestHand.name;
+                if(gameState.phase === 'showdown') {
+                    cpuHandRankEl.textContent = cpuBestHand.name;
+                }
+            } else {
+                 playerHandRankEl.textContent = '';
+                 cpuHandRankEl.textContent = '';
+            }
+            
+            updateActionPanel();
+        }
+        
+        function updateActionPanel() {
+            if (gameState.turn !== 'player' || gameState.phase === 'showdown') {
+                actionPanel.classList.add('hidden');
+                return;
+            }
+            actionPanel.classList.remove('hidden');
+
+            const toCall = gameState.currentBet - gameState.player.bet;
+
+            // チェック/コールボタンのテキスト更新
+            if (toCall > 0) {
+                checkCallButton.textContent = `コール ${toCall}`;
+            } else {
+                checkCallButton.textContent = 'チェック';
+            }
+            
+            // ベット/レイズボタンのテキスト更新
+            if(gameState.currentBet > 0) {
+                betRaiseButton.textContent = 'レイズ';
+            } else {
+                betRaiseButton.textContent = 'ベット';
+            }
+
+            // ベット額の最小値設定
+            const minRaise = gameState.currentBet > 0 ? gameState.currentBet * 2 : BIG_BLIND;
+            betAmountInput.min = Math.min(minRaise, gameState.player.stack + gameState.player.bet);
+            betAmountInput.value = betAmountInput.min;
+            betAmountInput.max = gameState.player.stack + gameState.player.bet;
+        }
+
+        function showMessage(text, duration = 1500) {
+            messageText.textContent = text;
+            messageOverlay.classList.remove('hidden');
+            if (duration > 0) {
+                setTimeout(() => {
+                    messageOverlay.classList.add('hidden');
+                }, duration);
+            }
+        }
+        
+        // --- 手役評価ロジック ---
+        const HAND_RANKS = {
+            ROYAL_FLUSH: 10,
+            STRAIGHT_FLUSH: 9,
+            FOUR_OF_A_KIND: 8,
+            FULL_HOUSE: 7,
+            FLUSH: 6,
+            STRAIGHT: 5,
+            THREE_OF_A_KIND: 4,
+            TWO_PAIR: 3,
+            ONE_PAIR: 2,
+            HIGH_CARD: 1,
+        };
+        const HAND_NAMES = {
+            10: 'ロイヤルフラッシュ', 9: 'ストレートフラッシュ', 8: 'フォーカード', 7: 'フルハウス', 6: 'フラッシュ',
+            5: 'ストレート', 4: 'スリーカード', 3: 'ツーペア', 2: 'ワンペア', 1: 'ハイカード',
+        };
+
+        function getBestHand(sevenCards) {
+            if (sevenCards.length < 5) return { rank: 0, name: '', values: [] };
+            
+            let bestHand = { rank: 0, name: '', values: [] };
+            
+            const combinations = getCombinations(sevenCards, 5);
+
+            for (const combo of combinations) {
+                const hand = evaluateFiveCardHand(combo);
+                if (hand.rank > bestHand.rank) {
+                    bestHand = hand;
+                } else if (hand.rank === bestHand.rank) {
+                    // 同じ役の場合はキッカーを比較
+                    for (let i = 0; i < hand.values.length; i++) {
+                        if (hand.values[i] > bestHand.values[i]) {
+                            bestHand = hand;
+                            break;
+                        }
+                        if(hand.values[i] < bestHand.values[i]) {
+                            break;
+                        }
+                    }
+                }
+            }
+            return bestHand;
+        }
+
+        function evaluateFiveCardHand(hand) {
+            hand.sort((a, b) => b.value - a.value);
+            const values = hand.map(c => c.value);
+            const ranks = hand.map(c => c.rank);
+            const suits = hand.map(c => c.suit);
+            
+            const isFlush = new Set(suits).size === 1;
+            const isStraight = checkStraight(values);
+            
+            if (isStraight && isFlush) {
+                if (values[0] === 14 && values[4] === 10) return { rank: HAND_RANKS.ROYAL_FLUSH, name: HAND_NAMES[10], values };
+                return { rank: HAND_RANKS.STRAIGHT_FLUSH, name: HAND_NAMES[9], values };
+            }
+
+            const rankCounts = ranks.reduce((acc, rank) => {
+                acc[rank] = (acc[rank] || 0) + 1;
+                return acc;
+            }, {});
+
+            const counts = Object.values(rankCounts).sort((a, b) => b - a);
+            const primaryCards = [];
+            const kickers = [];
+            
+            // 役の構成カードとキッカーを分類する
+            for(const rank in rankCounts) {
+                if(rankCounts[rank] > 1) {
+                    for(let i = 0; i < rankCounts[rank]; i++) primaryCards.push(RANK_VALUES[rank]);
+                } else {
+                    kickers.push(RANK_VALUES[rank]);
+                }
+            }
+            primaryCards.sort((a,b) => b-a);
+            kickers.sort((a,b) => b-a);
+
+
+            if (counts[0] === 4) return { rank: HAND_RANKS.FOUR_OF_A_KIND, name: HAND_NAMES[8], values: [...primaryCards, ...kickers] };
+            if (counts[0] === 3 && counts[1] === 2) return { rank: HAND_RANKS.FULL_HOUSE, name: HAND_NAMES[7], values: [...primaryCards, ...kickers] };
+            if (isFlush) return { rank: HAND_RANKS.FLUSH, name: HAND_NAMES[6], values };
+            if (isStraight) return { rank: HAND_RANKS.STRAIGHT, name: HAND_NAMES[5], values };
+            if (counts[0] === 3) return { rank: HAND_RANKS.THREE_OF_A_KIND, name: HAND_NAMES[4], values: [...primaryCards, ...kickers] };
+            if (counts[0] === 2 && counts[1] === 2) return { rank: HAND_RANKS.TWO_PAIR, name: HAND_NAMES[3], values: [...primaryCards, ...kickers] };
+            if (counts[0] === 2) return { rank: HAND_RANKS.ONE_PAIR, name: HAND_NAMES[2], values: [...primaryCards, ...kickers] };
+            
+            return { rank: HAND_RANKS.HIGH_CARD, name: HAND_NAMES[1], values };
+        }
+
+        function checkStraight(values) {
+            // A-5ストレートの場合
+            const uniqueValues = Array.from(new Set(values));
+            if (uniqueValues.length < 5) return false;
+
+            if(JSON.stringify(uniqueValues.sort((a,b) => b-a).slice(0,5)) === JSON.stringify([14, 5, 4, 3, 2])) {
+                // A-5を認識するためにAを1として再度評価
+                const lowAceValues = values.map(v => v === 14 ? 1 : v).sort((a, b) => b - a);
+                for (let i = 0; i < lowAceValues.length - 4; i++) {
+                     if (lowAceValues[i] - 4 === lowAceValues[i + 4]) return true;
+                }
+            }
+            
+            // 通常のストレート
+            for (let i = 0; i < uniqueValues.length - 4; i++) {
+                if (uniqueValues[i] - 4 === uniqueValues[i + 4]) return true;
+            }
+
+            return false;
+        }
+
+        function getCombinations(arr, k) {
+            const result = [];
+            function combine(current, start) {
+                if (current.length === k) {
+                    result.push([...current]);
+                    return;
+                }
+                for (let i = start; i < arr.length; i++) {
+                    current.push(arr[i]);
+                    combine(current, i + 1);
+                    current.pop();
+                }
+            }
+            combine([], 0);
+            return result;
+        }
+
+        // --- ゲーム進行ロジック ---
+        function startNewHand() {
+            // 前回のハンドの役表示をクリア
+            playerHandRankEl.textContent = '';
+            cpuHandRankEl.textContent = '';
+            
+            // ゲームオーバーチェック
+            if (gameState.player.stack <= 0) {
+                showMessage("あなたの負けです！", 0);
+                return;
+            }
+            if (gameState.cpu.stack <= 0) {
+                showMessage("あなたの勝ちです！", 0);
+                return;
+            }
+            
+            // ディーラーボタンを交代
+            gameState.player.isDealer = !gameState.player.isDealer;
+            gameState.cpu.isDealer = !gameState.cpu.isDealer;
+
+            // 状態リセット
+            gameState.deck = createDeck();
+            shuffleDeck(gameState.deck);
+            gameState.player.hand = [];
+            gameState.cpu.hand = [];
+            gameState.player.bet = 0;
+            gameState.cpu.bet = 0;
+            gameState.player.isAllIn = false;
+            gameState.cpu.isAllIn = false;
+            gameState.communityCards = [];
+            gameState.pot = 0;
+            gameState.phase = 'pre-flop';
+            gameState.currentBet = 0;
+            
+            nextHandPanel.classList.add('hidden');
+            
+            // カードを配る
+            gameState.player.hand.push(gameState.deck.pop());
+            gameState.cpu.hand.push(gameState.deck.pop());
+            gameState.player.hand.push(gameState.deck.pop());
+            gameState.cpu.hand.push(gameState.deck.pop());
+
+            // ブラインドの処理
+            const sbPlayer = gameState.player.isDealer ? gameState.player : gameState.cpu;
+            const bbPlayer = gameState.player.isDealer ? gameState.cpu : gameState.player;
+            
+            const sbAmount = Math.min(SMALL_BLIND, sbPlayer.stack);
+            sbPlayer.stack -= sbAmount;
+            sbPlayer.bet = sbAmount;
+
+            const bbAmount = Math.min(BIG_BLIND, bbPlayer.stack);
+            bbPlayer.stack -= bbAmount;
+            bbPlayer.bet = bbAmount;
+
+            gameState.pot = sbAmount + bbAmount;
+            gameState.currentBet = BIG_BLIND;
+
+            gameState.lastRaiser = bbPlayer;
+            gameState.turn = gameState.player.isDealer ? 'player' : 'cpu';
+
+            updateUI();
+            
+            // オールインの場合、即時ショーダウンへ
+            if (sbPlayer.stack === 0) sbPlayer.isAllIn = true;
+            if (bbPlayer.stack === 0) bbPlayer.isAllIn = true;
+            if (gameState.player.isAllIn || gameState.cpu.isAllIn) {
+                 handleAllInShowdown();
+            } else {
+                 if (gameState.turn === 'cpu') {
+                    setTimeout(runCpuTurn, 1000);
+                } else {
+                    updateActionPanel();
+                }
+            }
+        }
+        
+        function advancePhase() {
+            if(gameState.phase === 'showdown') return;
+            
+            // ベット額をポットへ
+            gameState.pot += gameState.player.bet + gameState.cpu.bet;
+            gameState.player.bet = 0;
+            gameState.cpu.bet = 0;
+            gameState.currentBet = 0;
+            gameState.lastRaiser = null;
+            
+            // ターン決定（ディーラーの左から）
+            gameState.turn = gameState.player.isDealer ? 'cpu' : 'player';
+
+            switch (gameState.phase) {
+                case 'pre-flop':
+                    gameState.phase = 'flop';
+                    gameState.communityCards.push(gameState.deck.pop(), gameState.deck.pop(), gameState.deck.pop());
+                    showMessage('フロップ');
+                    break;
+                case 'flop':
+                    gameState.phase = 'turn';
+                    gameState.communityCards.push(gameState.deck.pop());
+                    showMessage('ターン');
+                    break;
+                case 'turn':
+                    gameState.phase = 'river';
+                    gameState.communityCards.push(gameState.deck.pop());
+                    showMessage('リバー');
+                    break;
+                case 'river':
+                    gameState.phase = 'showdown';
+                    endHand();
+                    return;
+            }
+            updateUI();
+            
+            if (gameState.player.isAllIn || gameState.cpu.isAllIn) {
+                handleAllInShowdown();
+                return;
+            }
+            
+            if (gameState.turn === 'cpu') {
+                setTimeout(runCpuTurn, 1000);
+            } else {
+                updateActionPanel();
+            }
+        }
+        
+        function endHand() {
+            gameState.phase = 'showdown';
+            updateUI();
+            
+            const playerHand = getBestHand([...gameState.player.hand, ...gameState.communityCards]);
+            const cpuHand = getBestHand([...gameState.cpu.hand, ...gameState.communityCards]);
+
+            let winner = null;
+            if (playerHand.rank > cpuHand.rank) {
+                winner = 'player';
+            } else if (cpuHand.rank > playerHand.rank) {
+                winner = 'cpu';
+            } else {
+                 // 役が同じ場合はキッカーで勝敗を決定
+                for (let i = 0; i < playerHand.values.length; i++) {
+                    if (playerHand.values[i] > cpuHand.values[i]) {
+                        winner = 'player';
+                        break;
+                    }
+                    if (cpuHand.values[i] > playerHand.values[i]) {
+                        winner = 'cpu';
+                        break;
+                    }
+                }
+                if (winner === null) winner = 'tie'; // 引き分け
+            }
+            
+            if (winner === 'player') {
+                gameState.player.stack += gameState.pot;
+                showMessage(`あなたの勝ち！ (${playerHand.name})`);
+            } else if (winner === 'cpu') {
+                gameState.cpu.stack += gameState.pot;
+                showMessage(`CPUの勝ち！ (${cpuHand.name})`);
+            } else {
+                gameState.player.stack += Math.floor(gameState.pot / 2);
+                gameState.cpu.stack += Math.ceil(gameState.pot / 2);
+                showMessage('引き分け！');
+            }
+            
+            gameState.pot = 0;
+            actionPanel.classList.add('hidden');
+            nextHandPanel.classList.remove('hidden');
+            updateUI();
+        }
+
+        function checkBettingRoundOver() {
+            // どちらかがオールインなら即時終了
+            if (gameState.player.isAllIn || gameState.cpu.isAllIn) {
+                return true;
+            }
+
+            // ベット額が違うならラウンドは継続
+            if (gameState.player.bet !== gameState.cpu.bet) {
+                return false;
+            }
+
+            // ベット額が同じ場合
+            // ターンが移った後のプレイヤー（これからアクションするプレイヤー）を取得
+            const currentTurnPlayer = gameState.turn === 'player' ? gameState.player : gameState.cpu;
+
+            // ポストフロップで、まだ誰もベットしていない状況
+            if (gameState.phase !== 'pre-flop' && gameState.lastRaiser === null) {
+                const dealer = gameState.player.isDealer ? gameState.player : gameState.cpu;
+                // まだディーラーがアクションする番なら、ラウンドは継続
+                if (currentTurnPlayer === dealer) {
+                    return false;
+                }
+            }
+
+            // プリフロップで、ビッグブラインドがまだオプションを行使していない状況
+            if (gameState.phase === 'pre-flop' && gameState.currentBet === BIG_BLIND) {
+                const bbPlayer = gameState.player.isDealer ? gameState.cpu : gameState.player;
+                // まだビッグブラインドがアクションする番なら、ラウンドは継続
+                if (currentTurnPlayer === bbPlayer) {
+                    return false;
+                }
+            }
+
+            // 上記の例外（まだアクションの権利が残っているプレイヤーがいる）に当てはまらなければ、ラウンドは終了
+            return true;
+        }
+
+        // --- プレイヤーアクション ---
+        foldButton.addEventListener('click', () => {
+            showMessage('フォールドしました');
+            gameState.cpu.stack += gameState.pot;
+            gameState.pot = 0;
+            actionPanel.classList.add('hidden');
+            nextHandPanel.classList.remove('hidden');
+            updateUI();
+        });
+
+        checkCallButton.addEventListener('click', () => {
+            actionPanel.classList.add('hidden'); // ダブルクリック防止のため、即座にパネルを隠す
+            const toCall = gameState.currentBet - gameState.player.bet;
+
+            if (toCall > 0) { // Call
+                const callAmount = Math.min(toCall, gameState.player.stack);
+                gameState.player.stack -= callAmount;
+                gameState.player.bet += callAmount;
+                if(gameState.player.stack === 0) {
+                     gameState.player.isAllIn = true;
+                }
+            }
+            // チェックの場合はベット額の変更なし
+            
+            // ターンを交代
+            gameState.turn = 'cpu';
+            
+            if (checkBettingRoundOver()) {
+                updateUI();
+                setTimeout(advancePhase, 1000);
+            } else {
+                updateUI();
+                setTimeout(runCpuTurn, 1000);
+            }
+        });
+
+        betRaiseButton.addEventListener('click', () => {
+            let amount = parseInt(betAmountInput.value);
+            const totalBet = amount;
+            
+            const toCall = gameState.currentBet - gameState.player.bet;
+            const raiseAmount = totalBet - gameState.currentBet;
+            const minRaiseAmount = gameState.currentBet > 0 ? gameState.currentBet : BIG_BLIND;
+
+            if (raiseAmount < minRaiseAmount && (gameState.player.stack > raiseAmount + toCall)) {
+                 showMessage(`最小レイズ額は${gameState.currentBet + minRaiseAmount}です`, 2000);
+                 return;
+            }
+            if (totalBet > gameState.player.stack + gameState.player.bet) {
+                showMessage('スタックが足りません', 2000);
+                return;
+            }
+            
+            actionPanel.classList.add('hidden'); // アクションを確定し、パネルを隠す
+            
+            const betFromStack = totalBet - gameState.player.bet;
+            gameState.player.stack -= betFromStack;
+            gameState.player.bet = totalBet;
+            gameState.currentBet = totalBet;
+            gameState.lastRaiser = gameState.player;
+
+            if (gameState.player.stack === 0) {
+                gameState.player.isAllIn = true;
+            }
+            
+            gameState.turn = 'cpu';
+            updateUI();
+            setTimeout(runCpuTurn, 1000);
+        });
+
+        nextHandButton.addEventListener('click', startNewHand);
+        
+        // --- CPU AIロジック ---
+        function runCpuTurn() {
+            const handStrength = evaluateCpuHandPotential();
+            const toCall = gameState.currentBet - gameState.cpu.bet;
+
+            // アクション決定
+            let action = 'fold';
+            let betAmount = 0;
+
+            if (toCall === 0) { // チェック or ベット
+                if (handStrength > 0.6) {
+                    action = 'bet';
+                    betAmount = Math.floor(gameState.pot * (0.5 + Math.random() * 0.5));
+                } else if (handStrength > 0.3) {
+                     action = 'bet';
+                     betAmount = Math.floor(gameState.pot * 0.3);
+                } else {
+                    action = 'check';
+                }
+            } else { // フォールド or コール or レイズ
+                const potOdds = toCall / (gameState.pot + toCall);
+                if (handStrength > potOdds) {
+                    if (handStrength > 0.8 && Math.random() > 0.3) {
+                        action = 'raise';
+                        betAmount = gameState.currentBet * 2 + Math.floor(gameState.pot * Math.random() * 0.5);
+                    } else {
+                        action = 'call';
+                    }
+                } else {
+                    // ブラフの可能性
+                    if(gameState.phase === 'river' && Math.random() < 0.1) {
+                        action = 'raise';
+                        betAmount = gameState.pot;
+                    } else {
+                        action = 'fold';
+                    }
+                }
+            }
+            
+            // 資金チェックとアクション実行
+            executeCpuAction(action, betAmount, toCall);
+        }
+
+        function executeCpuAction(action, betAmount, toCall) {
+            if (action === 'fold') {
+                if (toCall > 0) {
+                     showMessage('CPU フォールド');
+                     gameState.player.stack += gameState.pot;
+                     gameState.pot = 0;
+                     actionPanel.classList.add('hidden');
+                     nextHandPanel.classList.remove('hidden');
+                     updateUI();
+                     return;
+                } else {
+                    action = 'check'; // コール額0ならチェックする
+                }
+            }
+            
+            if (action === 'check') {
+                showMessage('CPU チェック');
+                gameState.turn = 'player';
+                if (checkBettingRoundOver()) {
+                    setTimeout(advancePhase, 1000);
+                } else {
+                    updateUI();
+                }
+            }
+            
+            if (action === 'call') {
+                 const callAmount = Math.min(toCall, gameState.cpu.stack);
+                 showMessage(`CPU コール ${callAmount}`);
+                 gameState.cpu.stack -= callAmount;
+                 gameState.cpu.bet += callAmount;
+                 if (gameState.cpu.stack === 0) gameState.cpu.isAllIn = true;
+
+                 gameState.turn = 'player';
+                 
+                 if (checkBettingRoundOver()) {
+                    setTimeout(advancePhase, 1000);
+                 } else {
+                    // CPUのコールでラウンドが終了しないケース
+                    // (例: プリフロップでSBのCPUがコールし、BBのプレイヤーがオプションを持つ場合)
+                    // は、UIを更新してプレイヤーのアクションを待ちます。
+                    updateUI();
+                 }
+            }
+            
+            if (action === 'bet' || action === 'raise') {
+                let finalBetAmount = action === 'bet' ? Math.max(BIG_BLIND, betAmount) : Math.max(gameState.currentBet * 2, betAmount);
+                finalBetAmount = Math.min(finalBetAmount, gameState.cpu.stack + gameState.cpu.bet);
+                
+                const betFromStack = finalBetAmount - gameState.cpu.bet;
+
+                if (betFromStack <= 0) { // レイズ額が足りない場合コールに変更
+                     executeCpuAction('call', 0, toCall);
+                     return;
+                }
+                
+                showMessage(`CPU ${action === 'raise' ? 'レイズ' : 'ベット'} ${finalBetAmount}`);
+                gameState.cpu.stack -= betFromStack;
+                gameState.cpu.bet = finalBetAmount;
+                gameState.currentBet = finalBetAmount;
+                gameState.lastRaiser = gameState.cpu;
+                 if (gameState.cpu.stack === 0) gameState.cpu.isAllIn = true;
+                
+                gameState.turn = 'player';
+                // CPUがレイズしたので、プレイヤーのアクションを待つ
+                updateUI();
+            }
+        }
+        
+        // ハンドの強さを0-1で評価する簡易的な関数
+        function evaluateCpuHandPotential() {
+            const cards = [...gameState.cpu.hand, ...gameState.communityCards];
+            const handInfo = getBestHand(cards);
+            
+            let score = 0;
+            if (cards.length === 2) { // プリフロップ
+                const c1 = gameState.cpu.hand[0];
+                const c2 = gameState.cpu.hand[1];
+                if (c1.value === c2.value) score = c1.value / 14 * 0.5 + 0.5; // ペア
+                else {
+                    score = (c1.value + c2.value) / 28;
+                    if (c1.suit === c2.suit) score += 0.1; // スーテッド
+                    if (Math.abs(c1.value - c2.value) === 1) score += 0.05; // コネクター
+                }
+            } else {
+                score = handInfo.rank / 10;
+                // ドローの可能性を少し加味
+                const suits = cards.map(c => c.suit).reduce((a, s) => ({...a, [s]: (a[s] || 0) + 1}), {});
+                if (Object.values(suits).some(c => c === 4)) score = Math.max(score, 0.4); // フラッシュドロー
+                
+                const uniqueValues = Array.from(new Set(cards.map(c => c.value))).sort((a,b) => a-b);
+                for(let i = 0; i < uniqueValues.length - 3; i++) {
+                    if (uniqueValues[i+3] - uniqueValues[i] <= 4) score = Math.max(score, 0.4); // ストレートドロー
+                }
+            }
+            return score;
+        }
+
+        // オールイン時の処理
+        function handleAllInShowdown() {
+            // 足りないカードをすべて開く
+            const phases = ['flop', 'turn', 'river'];
+            let currentPhaseIndex = phases.indexOf(gameState.phase);
+            if(gameState.phase === 'pre-flop') currentPhaseIndex = -1;
+
+            let delay = 1000;
+            for(let i = currentPhaseIndex + 1; i < phases.length; i++) {
+                setTimeout(() => {
+                    if(i === 0) { // Flop
+                         gameState.communityCards.push(gameState.deck.pop(), gameState.deck.pop(), gameState.deck.pop());
+                    } else { // Turn & River
+                         gameState.communityCards.push(gameState.deck.pop());
+                    }
+                    showMessage(phases[i].charAt(0).toUpperCase() + phases[i].slice(1));
+                    updateUI();
+                }, delay);
+                delay += 2000;
+            }
+            
+            setTimeout(endHand, delay);
+        }
+
+        // --- ゲーム開始 ---
+        initGameState();
+        showMessage("テキサスホールデムへようこそ！", 2000);
+        setTimeout(startNewHand, 2100);
+
+    </script>
+</body>
+</html>
+
