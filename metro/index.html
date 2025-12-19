@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Precision Metronome</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto+Mono:wght@400;700&display=swap');
+
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-color: #1a1a1a;
+            color: #e5e5e5;
+            touch-action: manipulation; /* ダブルタップズーム防止 */
+        }
+
+        /* 独自スライダーのスタイル */
+        input[type=range] {
+            -webkit-appearance: none; 
+            background: transparent; 
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 24px;
+            width: 24px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            margin-top: -10px; 
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 4px;
+            cursor: pointer;
+            background: #4b5563;
+            border-radius: 2px;
+        }
+
+        /* アクティブ時のアニメーション */
+        .beat-active {
+            transform: scale(1.1);
+            background-color: #3b82f6 !important;
+            box-shadow: 0 0 20px #3b82f6;
+            transition: all 0.05s ease-out;
+        }
+
+        .beat-accent {
+            background-color: #ef4444 !important;
+            box-shadow: 0 0 20px #ef4444;
+        }
+
+        .visual-dot {
+            transition: background-color 0.1s;
+        }
+
+        /* モバイルでのタップハイライトを無効化 */
+        button {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body class="h-screen flex items-center justify-center overflow-hidden">
+
+    <div class="w-full max-w-md bg-gray-900 rounded-3xl shadow-2xl p-6 mx-4 border border-gray-800">
+        <!-- Header -->
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-gray-400 text-sm tracking-widest font-bold">METRONOME</h1>
+            <div id="status-indicator" class="w-2 h-2 rounded-full bg-red-500"></div>
+        </div>
+
+        <!-- Visualizer -->
+        <div class="mb-8 flex justify-center space-x-3" id="visualizer-container">
+            <!-- JavaScriptで動的にドットを生成 -->
+        </div>
+
+        <!-- BPM Display -->
+        <div class="text-center mb-8 relative group">
+            <div class="text-7xl font-bold text-white tabular-nums tracking-tighter" id="bpm-display">120</div>
+            <div class="text-blue-500 text-sm font-bold tracking-widest mt-1">BPM</div>
+        </div>
+
+        <!-- Controls -->
+        <div class="space-y-6">
+            
+            <!-- BPM Slider -->
+            <div class="flex items-center space-x-4">
+                <button id="bpm-decrease" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 active:bg-gray-600 transition text-xl font-bold">-</button>
+                <input type="range" id="bpm-slider" min="30" max="250" value="120" class="flex-1 h-10">
+                <button id="bpm-increase" class="w-10 h-10 rounded-full bg-gray-800 flex items-center justify-center hover:bg-gray-700 active:bg-gray-600 transition text-xl font-bold">+</button>
+            </div>
+
+            <!-- Start/Stop & Tap Tempo -->
+            <div class="grid grid-cols-3 gap-4">
+                <button id="tap-btn" class="col-span-1 py-4 bg-gray-800 rounded-2xl font-bold text-gray-300 hover:bg-gray-700 active:bg-gray-600 active:scale-95 transition shadow-lg border border-gray-700">
+                    TAP
+                </button>
+                <button id="play-btn" class="col-span-2 py-4 bg-blue-600 rounded-2xl font-bold text-white text-xl hover:bg-blue-500 active:bg-blue-700 active:scale-95 transition shadow-lg shadow-blue-900/50 flex items-center justify-center gap-2">
+                    <svg id="play-icon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span id="play-text">START</span>
+                </button>
+            </div>
+
+            <!-- Settings (Beats & Volume) -->
+            <div class="bg-gray-800 rounded-2xl p-4 grid grid-cols-2 gap-6 mt-4">
+                <!-- Time Signature -->
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2 uppercase font-bold">拍子 (Beats)</label>
+                    <div class="flex items-center justify-between bg-gray-900 rounded-lg p-1">
+                        <button id="beat-minus" class="w-8 h-8 flex items-center justify-center text-blue-400 hover:text-white transition font-bold text-lg">-</button>
+                        <span id="beats-display" class="font-bold text-white w-8 text-center">4</span>
+                        <button id="beat-plus" class="w-8 h-8 flex items-center justify-center text-blue-400 hover:text-white transition font-bold text-lg">+</button>
+                    </div>
+                </div>
+
+                <!-- Volume -->
+                <div>
+                    <label class="block text-xs text-gray-400 mb-2 uppercase font-bold">音量 (Volume)</label>
+                    <input type="range" id="volume-slider" min="0" max="100" value="80" class="w-full mt-2">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Web Audio APIを使用した高精度メトロノームロジック
+         * "Lookahead"スケジューリング方式を採用して、JSのメインスレッドの負荷に関わらず
+         * 正確なタイミングで音を鳴らします。
+         */
+
+        // --- 設定と状態 ---
+        let audioContext = null;
+        let isPlaying = false;
+        let bpm = 120;
+        let beatsPerMeasure = 4;
+        let currentBeat = 0;
+        let nextNoteTime = 0.0; // 次の音が鳴る時間
+        let timerID = null;
+        let lookahead = 25.0; // スケジューリング関数を呼ぶ頻度 (ms)
+        let scheduleAheadTime = 0.1; // どれくらい先まで音を予約するか (s)
+        
+        // ビジュアル用キュー (描画同期用)
+        const notesInQueue = []; 
+
+        // タップテンポ用変数
+        let tapTimes = [];
+        const TAP_TIMEOUT = 2000; // 2秒以上間隔があくとリセット
+
+        // DOM要素
+        const ui = {
+            playBtn: document.getElementById('play-btn'),
+            playIcon: document.getElementById('play-icon'),
+            playText: document.getElementById('play-text'),
+            bpmDisplay: document.getElementById('bpm-display'),
+            bpmSlider: document.getElementById('bpm-slider'),
+            bpmIncrease: document.getElementById('bpm-increase'),
+            bpmDecrease: document.getElementById('bpm-decrease'),
+            tapBtn: document.getElementById('tap-btn'),
+            visualizer: document.getElementById('visualizer-container'),
+            beatsDisplay: document.getElementById('beats-display'),
+            beatPlus: document.getElementById('beat-plus'),
+            beatMinus: document.getElementById('beat-minus'),
+            volumeSlider: document.getElementById('volume-slider'),
+            statusIndicator: document.getElementById('status-indicator')
+        };
+
+        // --- Audio Engine ---
+
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioContext.state === 'suspended') {
+                audioContext.resume();
+            }
+        }
+
+        function nextNote() {
+            const secondsPerBeat = 60.0 / bpm;
+            nextNoteTime += secondsPerBeat;
+            
+            currentBeat++;
+            if (currentBeat >= beatsPerMeasure) {
+                currentBeat = 0;
+            }
+        }
+
+        function scheduleNote(beatNumber, time) {
+            // 音を予約するためのキューに追加（ビジュアル用）
+            notesInQueue.push({ note: beatNumber, time: time });
+
+            // オシレーター作成
+            const osc = audioContext.createOscillator();
+            const envelope = audioContext.createGain();
+
+            // 周波数の設定 (1拍目は高く、他は低く)
+            if (beatNumber === 0) {
+                osc.frequency.value = 1000; // High pitch (Accent)
+            } else {
+                osc.frequency.value = 800;  // Low pitch
+            }
+
+            // 音量の設定
+            const volume = parseInt(ui.volumeSlider.value) / 100;
+            envelope.gain.value = volume;
+            
+            // エンベロープ (音の減衰)
+            // クリック音のような短く歯切れの良い音を作る
+            envelope.gain.setValueAtTime(volume, time);
+            envelope.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+
+            osc.connect(envelope);
+            envelope.connect(audioContext.destination);
+
+            osc.start(time);
+            osc.stop(time + 0.05);
+        }
+
+        function scheduler() {
+            // 現在の時間から scheduleAheadTime 先までの音を予約する
+            while (nextNoteTime < audioContext.currentTime + scheduleAheadTime) {
+                scheduleNote(currentBeat, nextNoteTime);
+                nextNote();
+            }
+            timerID = window.setTimeout(scheduler, lookahead);
+        }
+
+        // --- Visual Engine ---
+
+        let lastNoteDrawn = -1;
+
+        function draw() {
+            let currentNote = lastNoteDrawn;
+            const currentTime = audioContext ? audioContext.currentTime : 0;
+
+            // キューにある音符のうち、すでに再生時間を過ぎたものを処理
+            while (notesInQueue.length && notesInQueue[0].time < currentTime) {
+                currentNote = notesInQueue[0].note;
+                notesInQueue.splice(0, 1); // 処理済みを削除
+            }
+
+            // 新しい拍が来た場合、画面を更新
+            if (lastNoteDrawn !== currentNote) {
+                const dots = document.querySelectorAll('.visual-dot');
+                
+                // すべてのドットをリセット
+                dots.forEach(d => {
+                    d.classList.remove('beat-active', 'beat-accent');
+                    d.style.backgroundColor = '#374151'; // gray-700
+                });
+
+                if (dots[currentNote]) {
+                    // 1拍目はアクセントカラー（赤）、それ以外は青
+                    if (currentNote === 0) {
+                        dots[currentNote].classList.add('beat-accent');
+                    } else {
+                        dots[currentNote].classList.add('beat-active');
+                    }
+                }
+
+                lastNoteDrawn = currentNote;
+            }
+
+            if (isPlaying) {
+                requestAnimationFrame(draw);
+            }
+        }
+
+        function createVisualDots() {
+            ui.visualizer.innerHTML = '';
+            const widthClass = beatsPerMeasure > 6 ? 'w-3 h-3' : 'w-4 h-4'; // 数が多いときは小さく
+            
+            for (let i = 0; i < beatsPerMeasure; i++) {
+                const dot = document.createElement('div');
+                dot.className = `visual-dot ${widthClass} rounded-full bg-gray-700`;
+                ui.visualizer.appendChild(dot);
+            }
+        }
+
+        // --- User Interaction ---
+
+        function togglePlay() {
+            initAudioContext();
+            isPlaying = !isPlaying;
+
+            if (isPlaying) {
+                currentBeat = 0;
+                nextNoteTime = audioContext.currentTime + 0.05;
+                scheduler(); // 音声スケジューリング開始
+                requestAnimationFrame(draw); // 描画ループ開始
+                
+                // UI更新
+                ui.playBtn.classList.remove('bg-blue-600', 'hover:bg-blue-500');
+                ui.playBtn.classList.add('bg-red-600', 'hover:bg-red-500');
+                ui.playBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16"></rect><rect x="14" y="4" width="4" height="16"></rect></svg>
+                    <span>STOP</span>
+                `;
+                ui.statusIndicator.classList.replace('bg-red-500', 'bg-green-500');
+                ui.statusIndicator.classList.add('animate-pulse');
+            } else {
+                window.clearTimeout(timerID);
+                ui.playBtn.classList.add('bg-blue-600', 'hover:bg-blue-500');
+                ui.playBtn.classList.remove('bg-red-600', 'hover:bg-red-500');
+                ui.playBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+                    <span>START</span>
+                `;
+                ui.statusIndicator.classList.replace('bg-green-500', 'bg-red-500');
+                ui.statusIndicator.classList.remove('animate-pulse');
+                
+                // ビジュアルリセット
+                const dots = document.querySelectorAll('.visual-dot');
+                dots.forEach(d => {
+                    d.classList.remove('beat-active', 'beat-accent');
+                    d.style.backgroundColor = '#374151';
+                });
+            }
+        }
+
+        function updateBPM(value) {
+            // 範囲制限
+            let newBpm = parseInt(value);
+            if (newBpm < 30) newBpm = 30;
+            if (newBpm > 250) newBpm = 250;
+
+            bpm = newBpm;
+            ui.bpmSlider.value = bpm;
+            ui.bpmDisplay.textContent = bpm;
+        }
+
+        function updateBeats(change) {
+            let newBeats = beatsPerMeasure + change;
+            if (newBeats < 1) newBeats = 1;
+            if (newBeats > 16) newBeats = 16;
+            
+            beatsPerMeasure = newBeats;
+            ui.beatsDisplay.textContent = beatsPerMeasure;
+            
+            // 再生中なら現在のビートをリセットしないとvisualの整合性が崩れる可能性があるが、
+            // 音楽的にはそのまま続行したい。ただしdotの数は即座に変える。
+            createVisualDots();
+        }
+
+        // タップテンポロジック
+        function handleTap() {
+            const now = Date.now();
+            
+            // 最後のタップから時間が空きすぎていたらリセット
+            if (tapTimes.length > 0 && now - tapTimes[tapTimes.length - 1] > TAP_TIMEOUT) {
+                tapTimes = [];
+            }
+
+            tapTimes.push(now);
+
+            // 直近4回のタップのみ保持
+            if (tapTimes.length > 4) {
+                tapTimes.shift();
+            }
+
+            if (tapTimes.length > 1) {
+                // 平均間隔を計算
+                let intervals = [];
+                for (let i = 0; i < tapTimes.length - 1; i++) {
+                    intervals.push(tapTimes[i+1] - tapTimes[i]);
+                }
+                const avgInterval = intervals.reduce((a, b) => a + b) / intervals.length;
+                
+                const newBpm = Math.round(60000 / avgInterval);
+                updateBPM(newBpm);
+            }
+
+            // タップ時の視覚フィードバック
+            ui.tapBtn.classList.add('bg-gray-600');
+            setTimeout(() => ui.tapBtn.classList.remove('bg-gray-600'), 100);
+        }
+
+        // --- Event Listeners ---
+
+        ui.playBtn.addEventListener('click', togglePlay);
+        
+        ui.bpmSlider.addEventListener('input', (e) => updateBPM(e.target.value));
+        
+        ui.bpmIncrease.addEventListener('click', () => updateBPM(bpm + 1));
+        ui.bpmDecrease.addEventListener('click', () => updateBPM(bpm - 1));
+        
+        // 長押し対応 (Increase)
+        let holdInterval;
+        const startHold = (func) => {
+            func();
+            holdInterval = setInterval(func, 100);
+        };
+        const stopHold = () => clearInterval(holdInterval);
+
+        ui.bpmIncrease.addEventListener('mousedown', () => startHold(() => updateBPM(bpm + 1)));
+        ui.bpmIncrease.addEventListener('mouseup', stopHold);
+        ui.bpmIncrease.addEventListener('mouseleave', stopHold);
+        ui.bpmIncrease.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(() => updateBPM(bpm + 1)); });
+        ui.bpmIncrease.addEventListener('touchend', stopHold);
+
+        // 長押し対応 (Decrease)
+        ui.bpmDecrease.addEventListener('mousedown', () => startHold(() => updateBPM(bpm - 1)));
+        ui.bpmDecrease.addEventListener('mouseup', stopHold);
+        ui.bpmDecrease.addEventListener('mouseleave', stopHold);
+        ui.bpmDecrease.addEventListener('touchstart', (e) => { e.preventDefault(); startHold(() => updateBPM(bpm - 1)); });
+        ui.bpmDecrease.addEventListener('touchend', stopHold);
+
+        ui.tapBtn.addEventListener('click', handleTap);
+
+        ui.beatPlus.addEventListener('click', () => updateBeats(1));
+        ui.beatMinus.addEventListener('click', () => updateBeats(-1));
+
+        // キーボードショートカット
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                togglePlay();
+            }
+            if (e.code === 'ArrowUp') updateBPM(bpm + 1);
+            if (e.code === 'ArrowDown') updateBPM(bpm - 1);
+        });
+
+        // 初期化
+        createVisualDots();
+
+    </script>
+</body>
+</html>
