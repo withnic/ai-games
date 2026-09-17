@@ -1,0 +1,1563 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>本格四人麻雀 (Riichi Mahjong)</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@600;900&family=Yuji+Boku&display=swap');
+    
+    body {
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: manipulation;
+      font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'BIZ UDPGothic', sans-serif;
+    }
+
+    /* 麻雀牌の立体感 */
+    .mj-tile {
+      position: relative;
+      border-radius: 4px;
+      background: linear-gradient(145deg, #ffffff 0%, #f7f3e8 85%, #dcd3be 100%);
+      box-shadow: 1px 2px 4px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 -2px 0 #b3a78d;
+      border: 1px solid #c9bda5;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.12s ease, box-shadow 0.12s ease, margin 0.12s ease;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+
+    .mj-tile::after {
+      content: '';
+      position: absolute;
+      bottom: -3px;
+      left: 1px;
+      right: 1px;
+      height: 3px;
+      background: linear-gradient(to bottom, #d4a359, #9e6f28);
+      border-radius: 0 0 3px 3px;
+    }
+
+    .mj-tile.interactive:hover {
+      transform: translateY(-8px);
+      box-shadow: 1px 6px 10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+    }
+
+    .mj-tile.selected {
+      transform: translateY(-12px) !important;
+      box-shadow: 0 0 12px #38bdf8, 1px 6px 12px rgba(0, 0, 0, 0.6) !important;
+      border-color: #38bdf8;
+    }
+
+    /* リーチ宣言時の候補牌ハイライト */
+    .mj-tile.riichi-candidate {
+      border: 2px solid #ef4444 !important;
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.8), 0 4px 6px rgba(0, 0, 0, 0.4) !important;
+      animation: pulse-border 1.5s infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 6px rgba(239, 68, 68, 0.6); }
+      50% { box-shadow: 0 0 14px rgba(239, 68, 68, 1); }
+    }
+
+    /* 誤打防止：非活性牌 */
+    .mj-tile.disabled-tile {
+      opacity: 0.35 !important;
+      pointer-events: none !important;
+      filter: grayscale(60%);
+      cursor: not-allowed !important;
+    }
+
+    /* 待ち牌ガイド吹き出し（見切れ防止・視認性向上） */
+    .wait-tooltip {
+      position: absolute;
+      bottom: calc(100% + 4px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #0f172a;
+      border: 1.5px solid #f59e0b;
+      color: #fef08a;
+      padding: 2px 5px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 50;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.8);
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .wait-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 4px;
+      border-style: solid;
+      border-color: #f59e0b transparent transparent transparent;
+    }
+
+    .mj-tile.riichi-tile {
+      transform: rotate(90deg);
+      margin-left: 4px;
+      margin-right: 4px;
+    }
+
+    /* 対面用：上下逆さ (180度回転) */
+    .mj-tile.tile-toimen {
+      transform: rotate(180deg);
+    }
+
+    .mj-tile.tile-toimen.riichi-tile {
+      transform: rotate(90deg);
+      margin-left: 4px;
+      margin-right: 4px;
+    }
+
+    /* 上家・下家用：横向き牌 (幅広・低め) */
+    .mj-tile.tile-side-kami,
+    .mj-tile.tile-side-shimo {
+      width: 29px !important;
+      height: 22px !important;
+      box-shadow: 2px 1px 4px rgba(0, 0, 0, 0.45), inset 1px 0 0 rgba(255, 255, 255, 0.9);
+    }
+    @media (min-width: 640px) {
+      .mj-tile.tile-side-kami,
+      .mj-tile.tile-side-shimo {
+        width: 33px !important;
+        height: 25px !important;
+      }
+    }
+
+    /* 上家の竹背 (右側) */
+    .mj-tile.tile-side-kami::after {
+      top: 1px;
+      bottom: 1px;
+      right: -3px;
+      left: auto;
+      width: 3px;
+      height: auto;
+      background: linear-gradient(to right, #d4a359, #9e6f28);
+      border-radius: 0 3px 3px 0;
+    }
+
+    /* 下家の竹背 (左側) */
+    .mj-tile.tile-side-shimo::after {
+      top: 1px;
+      bottom: 1px;
+      left: -3px;
+      right: auto;
+      width: 3px;
+      height: auto;
+      background: linear-gradient(to left, #d4a359, #9e6f28);
+      border-radius: 3px 0 0 3px;
+    }
+
+    /* 卓のマット質感 */
+    .mahjong-mat {
+      background: radial-gradient(circle at center, #1b5334 0%, #123d25 70%, #0c2918 100%);
+      box-shadow: inset 0 0 60px rgba(0, 0, 0, 0.65);
+    }
+
+    /* 牌の文字用スタイル */
+    .kanji-font {
+      font-family: 'Noto Serif JP', serif;
+    }
+
+    /* スクロールバー非表示 */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-screen w-screen overflow-hidden flex flex-col">
+
+  <header class="bg-slate-900 border-b border-slate-800 px-3 py-1.5 flex items-center justify-between z-20 text-xs sm:text-sm">
+    <div class="flex items-center space-x-3">
+      <span class="font-bold text-amber-400 tracking-wider flex items-center gap-1.5">
+        <span class="text-base sm:text-lg">🀄</span> 本格四人麻雀
+      </span>
+      <span id="game-round-badge" class="bg-emerald-950 text-emerald-300 border border-emerald-700/60 px-2 py-0.5 rounded font-mono font-medium">
+        東1局 0本場
+      </span>
+      <span id="deck-remaining" class="text-slate-400">残: 70枚</span>
+    </div>
+
+    <div class="flex items-center space-x-2">
+      <button id="btn-sound" class="p-1.5 rounded hover:bg-slate-800 text-slate-300 transition" title="効果音切替">
+        🔊
+      </button>
+      <button id="btn-rule" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-xs transition">
+        役一覧
+      </button>
+      <button id="btn-restart" class="px-2.5 py-1 bg-amber-600/80 hover:bg-amber-500 text-white rounded text-xs font-bold transition">
+        新対局
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 relative mahjong-mat flex flex-col justify-between p-2 sm:p-4 overflow-hidden select-none">
+    
+    <!-- 対面 (Toimen / North AI) -->
+    <div class="flex flex-col items-center justify-center w-full relative">
+      <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1 rounded-full border border-slate-700/70 shadow-md">
+        <span class="text-emerald-400 font-bold text-xs">北</span>
+        <span class="text-xs text-slate-200 font-semibold">対面 (CPU)</span>
+        <span id="score-toimen" class="text-amber-300 font-mono text-xs">25,000点</span>
+        <span id="riichi-toimen" class="hidden text-[10px] bg-red-600 text-white px-1.5 rounded-full font-bold">立直</span>
+      </div>
+      <!-- 対面の手牌 (伏せ牌) -->
+      <div id="hand-toimen" class="flex items-center justify-center gap-0.5 mt-1 opacity-90 scale-75 sm:scale-90 origin-top"></div>
+    </div>
+
+    <!-- 中央エリア (河 & 卓中央情報) -->
+    <div class="flex-1 flex items-center justify-between w-full max-w-4xl mx-auto my-1 relative">
+      
+      <!-- 上家 (Kamicha / West AI) -->
+      <div class="flex flex-col items-center w-12 sm:w-16">
+        <div class="bg-slate-900/80 px-1.5 py-2 rounded-lg border border-slate-700/70 shadow-md flex flex-col items-center mb-1">
+          <span class="text-emerald-400 font-bold text-xs">西</span>
+          <span class="text-[10px] text-slate-300 writing-vertical">上家</span>
+          <span id="score-kamicha" class="text-amber-300 font-mono text-[10px] mt-1">25k</span>
+          <span id="riichi-kamicha" class="hidden text-[8px] bg-red-600 text-white px-1 rounded-full font-bold mt-1">立直</span>
+        </div>
+        <div id="hand-kamicha" class="flex flex-col gap-0.5 scale-75 sm:scale-90 origin-left"></div>
+      </div>
+
+      <!-- 卓の中央：ドラ表示牌・捨て牌河 (River) -->
+      <div class="flex-1 h-full max-h-[340px] flex flex-col items-center justify-center mx-2 sm:mx-6 relative">
+        
+        <!-- 対面の河 -->
+        <div id="river-toimen" class="grid grid-cols-6 gap-0.5 mb-1 max-w-[210px] sm:max-w-[240px] justify-items-center"></div>
+
+        <!-- 左右河 & 中央ボックス -->
+        <div class="flex items-center justify-between w-full">
+          <!-- 上家の河 (横向き牌・縦6列展開) -->
+          <div id="river-kamicha" class="grid grid-rows-6 grid-flow-col gap-0.5 justify-items-center max-h-[148px]"></div>
+
+          <!-- 中央インフォ盤 -->
+          <div class="bg-slate-950/85 border border-amber-500/40 rounded-lg p-2 shadow-2xl flex flex-col items-center justify-center min-w-[140px] sm:min-w-[170px] z-10">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-[11px] text-slate-400 font-bold">ドラ表示牌</span>
+              <div id="dora-indicator" class="scale-90"></div>
+            </div>
+            <div class="grid grid-cols-2 gap-x-2 text-[11px] text-slate-300 border-t border-slate-800 pt-1 w-full text-center">
+              <div>場風: <span class="text-amber-400 font-bold" id="center-bakaze">東</span></div>
+              <div>供託: <span class="text-amber-400 font-bold font-mono" id="center-pot">0</span></div>
+            </div>
+            <div id="turn-message" class="text-[11px] text-emerald-400 font-bold mt-1 text-center truncate max-w-[150px]">
+              あなたの番です
+            </div>
+          </div>
+
+          <!-- 下家の河 (横向き牌・縦6列展開) -->
+          <div id="river-shimocha" class="grid grid-rows-6 grid-flow-col gap-0.5 justify-items-center max-h-[148px]"></div>
+        </div>
+
+        <!-- 自分の河 -->
+        <div id="river-player" class="grid grid-cols-6 gap-0.5 mt-1 max-w-[210px] sm:max-w-[240px] justify-items-center"></div>
+      </div>
+
+      <!-- 下家 (Shimocha / East AI) -->
+      <div class="flex flex-col items-center w-12 sm:w-16">
+        <div class="bg-slate-900/80 px-1.5 py-2 rounded-lg border border-slate-700/70 shadow-md flex flex-col items-center mb-1">
+          <span class="text-emerald-400 font-bold text-xs">東</span>
+          <span class="text-[10px] text-slate-300 writing-vertical">下家</span>
+          <span id="score-shimocha" class="text-amber-300 font-mono text-[10px] mt-1">25k</span>
+          <span id="riichi-shimocha" class="hidden text-[8px] bg-red-600 text-white px-1 rounded-full font-bold mt-1">立直</span>
+        </div>
+        <div id="hand-shimocha" class="flex flex-col gap-0.5 scale-75 sm:scale-90 origin-right"></div>
+      </div>
+
+    </div>
+
+    <!-- プレイヤー手牌エリア (South) -->
+    <div class="w-full flex flex-col items-center z-20">
+      
+      <!-- リーチ宣言専用ナビゲーションバー（見切れ防止・明瞭表示） -->
+      <div id="riichi-guide-banner" class="hidden w-full max-w-2xl bg-gradient-to-r from-red-950/95 via-slate-900/95 to-red-950/95 border border-red-500/80 rounded-lg px-3 py-1.5 mb-1.5 text-center shadow-xl">
+        <div class="flex items-center justify-center gap-2 text-xs">
+          <span class="bg-red-600 text-white font-bold px-2 py-0.5 rounded text-[11px] shadow">立直宣言</span>
+          <span id="riichi-guide-text" class="text-amber-300 font-bold tracking-wide">赤枠の牌をタップして捨てる牌を選んでください</span>
+        </div>
+      </div>
+
+      <!-- アクション・ナビゲーションバー -->
+      <div class="flex items-center justify-between w-full max-w-3xl mb-1 px-2">
+        <div class="flex items-center gap-2 bg-slate-900/90 border border-slate-700 px-3 py-1 rounded-full text-xs shadow-md">
+          <span class="text-emerald-400 font-bold">南 (あなた)</span>
+          <span id="score-player" class="text-amber-300 font-mono font-bold">25,000点</span>
+          <span id="player-shanten-display" class="text-slate-300 ml-1">配牌中...</span>
+        </div>
+
+        <!-- アクションボタン群 -->
+        <div id="action-bar" class="flex items-center gap-1.5">
+          <button id="btn-riichi" class="hidden bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs px-3 py-1.5 rounded shadow-lg border border-rose-400 animate-pulse">
+            リーチ
+          </button>
+          <button id="btn-cancel-riichi" class="hidden bg-slate-700 hover:bg-slate-600 text-slate-200 font-bold text-xs px-2.5 py-1.5 rounded shadow border border-slate-500">
+            戻る
+          </button>
+          <button id="btn-tsumo" class="hidden bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs px-3 py-1.5 rounded shadow-lg border border-yellow-200">
+            ツモ
+          </button>
+          <button id="btn-ron" class="hidden bg-gradient-to-r from-red-600 to-orange-500 hover:from-red-500 hover:to-orange-400 text-white font-black text-xs px-3 py-1.5 rounded shadow-lg border border-orange-300 animate-bounce">
+            ロン
+          </button>
+          <button id="btn-pass" class="hidden bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs px-2.5 py-1.5 rounded">
+            スルー
+          </button>
+          <button id="btn-sort" class="bg-slate-800/80 hover:bg-slate-700 border border-slate-600 text-slate-300 text-xs px-2.5 py-1 rounded">
+            理牌
+          </button>
+
+          <!-- 自動ツモ切りトグル -->
+          <label class="flex items-center gap-1 bg-slate-900/90 border border-slate-700 hover:border-slate-500 px-2 py-1 rounded cursor-pointer select-none text-[11px] text-slate-300 transition ml-1" title="リーチ時、あがれないツモ牌を自動で捨てます">
+            <input type="checkbox" id="check-auto-tsumo" checked class="w-3.5 h-3.5 accent-amber-500 rounded cursor-pointer">
+            <span>自動ツモ切</span>
+          </label>
+        </div>
+      </div>
+
+      <!-- プレイヤー手牌（上部パディングをpt-8に拡張して吹き出しの見切れを防止） -->
+      <div class="flex items-end justify-center w-full overflow-x-auto no-scrollbar pb-1 pt-8 px-2">
+        <div id="hand-player" class="flex items-center gap-1 sm:gap-1.5 p-1 bg-black/30 rounded-xl border border-white/5 shadow-inner">
+          <!-- 動的に牌要素が挿入されます -->
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- 和了 (アガリ) / 流局モーダル -->
+  <div id="modal-result" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-amber-500/60 rounded-xl p-5 max-w-md w-full shadow-2xl text-center transform transition-all">
+      <div id="res-winner-badge" class="inline-block bg-amber-500 text-slate-950 font-black text-sm px-3 py-0.5 rounded-full mb-2">
+        ツモ和了
+      </div>
+      <h3 id="res-winner-name" class="text-2xl font-bold text-white mb-2">あなたのアガリ</h3>
+      
+      <!-- 和了牌プレビュー -->
+      <div id="res-tiles" class="flex items-center justify-center gap-1 my-3 overflow-x-auto py-1"></div>
+
+      <!-- 役一覧 -->
+      <div id="res-yaku-list" class="bg-slate-950/70 rounded-lg p-3 my-3 text-left space-y-1 text-sm border border-slate-800">
+        <!-- 役名と翻数が動的に入る -->
+      </div>
+
+      <!-- 点数・符 -->
+      <div class="my-3">
+        <div id="res-fu-han" class="text-slate-400 text-xs">40符 3翻</div>
+        <div id="res-score" class="text-3xl font-black text-amber-400 font-mono">3,900点</div>
+      </div>
+
+      <button id="btn-next-round" class="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-2.5 rounded-lg shadow-lg text-sm mt-2 transition">
+        次の局へ進む
+      </button>
+    </div>
+  </div>
+
+  <!-- 役一覧・ヘルプモーダル -->
+  <div id="modal-rules" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-xl p-5 max-w-lg w-full shadow-2xl max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-amber-400">基本役一覧 (主要役)</h3>
+        <button id="btn-close-rules" class="text-slate-400 hover:text-white text-lg">✕</button>
+      </div>
+      <div class="overflow-y-auto py-3 space-y-3 text-xs text-slate-300 leading-relaxed pr-1">
+        <div class="bg-slate-950 p-2.5 rounded border border-slate-800">
+          <div class="font-bold text-emerald-400 mb-1">【1翻役】</div>
+          <p><strong class="text-white">立直 (リーチ):</strong> 門前でテンパイ時に1,000点供託して宣言。</p>
+          <p><strong class="text-white">門前清自摸和 (ツモ):</strong> 門前でツモアガリする。</p>
+          <p><strong class="text-white">断幺九 (タンヤオ):</strong> 1・9・字牌を一切使わず2〜8のみで構成。</p>
+          <p><strong class="text-white">平和 (ピンフ):</strong> 門前で4面子すべて順子、頭が役牌以外、両面待ち。</p>
+          <p><strong class="text-white">役牌 (ヤクハイ):</strong> 白・發・中、または場風・自風の刻子。</p>
+        </div>
+        <div class="bg-slate-950 p-2.5 rounded border border-slate-800">
+          <div class="font-bold text-emerald-400 mb-1">【2翻役】</div>
+          <p><strong class="text-white">七対子 (チートイツ):</strong> 異なる対子(ペア)を7組揃える。</p>
+          <p><strong class="text-white">三色同順 (サンショク):</strong> 萬子・筒子・索子で同じ数字の順子を揃える。</p>
+          <p><strong class="text-white">一気通貫 (イッツー):</strong> 同一種類の123・456・789を揃える。</p>
+          <p><strong class="text-white">対々和 (トイトイ):</strong> 4面子すべてを刻子・槓子で揃える。</p>
+        </div>
+        <div class="bg-slate-950 p-2.5 rounded border border-slate-800">
+          <div class="font-bold text-emerald-400 mb-1">【3〜6翻役・役満】</div>
+          <p><strong class="text-white">混一色 (ホンイツ):</strong> 字牌とどれか1種類の数牌だけで構成 (3翻/鳴き2翻)。</p>
+          <p><strong class="text-white">清一色 (チンイツ):</strong> 1種類の数牌だけで構成 (6翻/鳴き5翻)。</p>
+          <p><strong class="text-white">役満:</strong> 国士無双、四暗刻、大三元、字一色、緑一色など。</p>
+        </div>
+      </div>
+      <button id="btn-close-rules-2" class="mt-2 w-full bg-slate-800 hover:bg-slate-700 text-white font-semibold py-2 rounded text-xs">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // Web Audio APIによる麻雀サウンド生成
+    class SoundManager {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playTileClick() {
+        if (!this.enabled) return;
+        this.init();
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(160, this.ctx.currentTime + 0.04);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.04);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.04);
+      }
+      playDiscard() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(540, now);
+        osc.frequency.exponentialRampToValueAtTime(90, now + 0.06);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.06);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.06);
+      }
+      playRiichi() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        [523.25, 659.25, 783.99].forEach((freq, idx) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+          gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + idx * 0.08 + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + idx * 0.08);
+          osc.stop(now + idx * 0.08 + 0.25);
+        });
+      }
+      playWin() {
+        if (!this.enabled) return;
+        this.init();
+        const now = this.ctx.currentTime;
+        const chord = [523.25, 659.25, 783.99, 1046.50];
+        chord.forEach((freq, i) => {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, now + i * 0.05);
+          gain.gain.setValueAtTime(0.25, now + i * 0.05);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start(now + i * 0.05);
+          osc.stop(now + 1.2);
+        });
+      }
+    }
+    const sound = new SoundManager();
+  </script>
+
+  <script>
+    // 牌の種類定義 (34種)
+    // m: 萬子, p: 筒子, s: 索子, z: 字牌 (1:東, 2:南, 3:西, 4:北, 5:白, 6:發, 7:中)
+    const TILE_DEFS = {
+      m: ['一', '二', '三', '四', '五', '六', '七', '八', '九'],
+      p: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+      s: ['1', '2', '3', '4', '5', '6', '7', '8', '9'],
+      z: ['東', '南', '西', '北', '白', '發', '中']
+    };
+
+    // 待ち牌等の表示用名称取得関数
+    function getTileName(tileKey) {
+      if (!tileKey || tileKey.length < 2) return '';
+      const suit = tileKey[0];
+      const val = parseInt(tileKey[1]);
+      const kanjiNums = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+      if (suit === 'm') return `${kanjiNums[val - 1]}萬`;
+      if (suit === 'p') return `${val}筒`;
+      if (suit === 's') return `${val}索`;
+      if (suit === 'z') return TILE_DEFS.z[val - 1] || tileKey;
+      return tileKey;
+    }
+
+    // 牌のSVG生成関数 (高精細・レスポンシブ)
+    function generateTileSVG(tileKey, width = 34, height = 48) {
+      const type = tileKey[0];
+      const val = parseInt(tileKey[1]);
+
+      let innerContent = '';
+
+      if (type === 'm') {
+        // 萬子: 数字漢字 + 萬
+        const kanji = TILE_DEFS.m[val - 1];
+        const numColor = (val === 5) ? '#dc2626' : '#991b1b';
+        innerContent = `
+          <text x="50%" y="42%" text-anchor="middle" dominant-baseline="central" font-family="'Noto Serif JP', serif" font-weight="900" font-size="20" fill="${numColor}">${kanji}</text>
+          <text x="50%" y="78%" text-anchor="middle" dominant-baseline="central" font-family="'Noto Serif JP', serif" font-weight="900" font-size="16" fill="#991b1b">萬</text>
+        `;
+      } else if (type === 'p') {
+        // 筒子: 幾何学サークルデザイン
+        innerContent = getPinzuSVG(val);
+      } else if (type === 's') {
+        // 索子: 竹デザイン (1索は鳥デザイン)
+        innerContent = getSouzuSVG(val);
+      } else if (type === 'z') {
+        // 字牌
+        const zChar = TILE_DEFS.z[val - 1];
+        let color = '#1e293b';
+        if (val === 5) { // 白
+          innerContent = `<rect x="6" y="8" width="22" height="32" rx="3" fill="none" stroke="#2563eb" stroke-width="2" stroke-dasharray="2 1"/>`;
+        } else {
+          if (val === 6) color = '#16a34a'; // 發
+          if (val === 7) color = '#dc2626'; // 中
+          innerContent = `
+            <text x="50%" y="54%" text-anchor="middle" dominant-baseline="central" font-family="'Noto Serif JP', serif" font-weight="900" font-size="25" fill="${color}">${zChar}</text>
+          `;
+        }
+      }
+
+      return `
+        <svg width="${width}" height="${height}" viewBox="0 0 34 48" class="select-none pointer-events-none drop-shadow-sm">
+          ${innerContent}
+        </svg>
+      `;
+    }
+
+    // 筒子 (Pinzu) の模様
+    function getPinzuSVG(n) {
+      function circle(cx, cy, r = 4, color = '#2563eb', hasCenter = true) {
+        return `
+          <circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="#1e3a8a" stroke-width="0.8"/>
+          ${hasCenter ? `<circle cx="${cx}" cy="${cy}" r="${r * 0.4}" fill="#dc2626"/>` : ''}
+        `;
+      }
+      if (n === 1) return circle(17, 24, 11, '#dc2626', false) + `<circle cx="17" cy="24" r="5" fill="#2563eb"/><circle cx="17" cy="24" r="2" fill="#fff"/>`;
+      if (n === 2) return circle(17, 13, 5, '#16a34a') + circle(17, 35, 5, '#2563eb');
+      if (n === 3) return circle(10, 11, 4.5, '#2563eb') + circle(17, 24, 4.5, '#dc2626') + circle(24, 37, 4.5, '#16a34a');
+      if (n === 4) return circle(11, 14, 4.5, '#2563eb') + circle(23, 14, 4.5, '#16a34a') + circle(11, 34, 4.5, '#16a34a') + circle(23, 34, 4.5, '#2563eb');
+      if (n === 5) return circle(10, 12, 4, '#16a34a') + circle(24, 12, 4, '#2563eb') + circle(17, 24, 4.5, '#dc2626') + circle(10, 36, 4, '#2563eb') + circle(24, 36, 4, '#16a34a');
+      if (n === 6) return circle(11, 11, 4, '#16a34a') + circle(23, 11, 4, '#16a34a') + circle(11, 24, 4, '#dc2626') + circle(23, 24, 4, '#dc2626') + circle(11, 37, 4, '#dc2626') + circle(23, 37, 4, '#dc2626');
+      if (n === 7) return circle(9, 9, 3.5, '#16a34a') + circle(17, 13, 3.5, '#16a34a') + circle(25, 17, 3.5, '#16a34a') + circle(11, 28, 3.5, '#dc2626') + circle(23, 28, 3.5, '#dc2626') + circle(11, 39, 3.5, '#dc2626') + circle(23, 39, 3.5, '#dc2626');
+      if (n === 8) return circle(11, 8, 3.5) + circle(23, 8, 3.5) + circle(11, 18, 3.5) + circle(23, 18, 3.5) + circle(11, 29, 3.5) + circle(23, 29, 3.5) + circle(11, 40, 3.5) + circle(23, 40, 3.5);
+      if (n === 9) {
+        let res = '';
+        [10, 24, 38].forEach(y => {
+          [9, 17, 25].forEach(x => {
+            const col = (y === 10) ? '#16a34a' : (y === 24 ? '#dc2626' : '#2563eb');
+            res += circle(x, y, 3.5, col);
+          });
+        });
+        return res;
+      }
+      return '';
+    }
+
+    // 索子 (Souzu) の模様
+    function getSouzuSVG(n) {
+      if (n === 1) {
+        // 1索の孔雀・緑鳥風アイコン
+        return `
+          <path d="M17 10 C14 10 11 14 11 19 C11 25 15 28 17 38 C19 28 23 25 23 19 C23 14 20 10 17 10 Z" fill="#16a34a"/>
+          <circle cx="17" cy="14" r="3" fill="#dc2626"/>
+          <path d="M10 20 Q17 12 24 20 Q17 28 10 20 Z" fill="#059669"/>
+          <circle cx="17" cy="14" r="1" fill="#fff"/>
+        `;
+      }
+      function stick(x, y, h = 10, col = '#16a34a') {
+        return `
+          <line x1="${x}" y1="${y}" x2="${x}" y2="${y + h}" stroke="${col}" stroke-width="2.5" stroke-linecap="round"/>
+          <line x1="${x - 1.5}" y1="${y + h * 0.5}" x2="${x + 1.5}" y2="${y + h * 0.5}" stroke="#991b1b" stroke-width="1.5"/>
+        `;
+      }
+      if (n === 2) return stick(17, 10, 11) + stick(17, 27, 11);
+      if (n === 3) return stick(17, 8, 9) + stick(11, 26, 9) + stick(23, 26, 9);
+      if (n === 4) return stick(11, 10, 11) + stick(23, 10, 11) + stick(11, 27, 11) + stick(23, 27, 11);
+      if (n === 5) return stick(10, 9, 10) + stick(24, 9, 10) + stick(17, 19, 10, '#dc2626') + stick(10, 29, 10) + stick(24, 29, 10);
+      if (n === 6) return stick(10, 10, 11) + stick(17, 10, 11) + stick(24, 10, 11) + stick(10, 27, 11) + stick(17, 27, 11) + stick(24, 27, 11);
+      if (n === 7) return stick(17, 8, 9, '#dc2626') + stick(10, 20, 9) + stick(17, 20, 9) + stick(24, 20, 9) + stick(10, 31, 9) + stick(17, 31, 9) + stick(24, 31, 9);
+      if (n === 8) return stick(10, 8, 8) + stick(17, 8, 8) + stick(24, 8, 8) + stick(10, 20, 7) + stick(24, 20, 7) + stick(10, 31, 8) + stick(17, 31, 8) + stick(24, 31, 8);
+      if (n === 9) {
+        let res = '';
+        [8, 20, 32].forEach(y => {
+          [10, 17, 24].forEach(x => {
+            res += stick(x, y, 7, (y === 20 ? '#dc2626' : '#16a34a'));
+          });
+        });
+        return res;
+      }
+      return '';
+    }
+
+    // 伏せ牌 (裏向き牌) の生成
+    function generateHiddenTileSVG(w = 26, h = 36, isHorizontal = false) {
+      if (isHorizontal) {
+        return `
+          <div class="rounded-[3px] bg-amber-700 border border-amber-900 shadow-sm flex items-center justify-center flex-shrink-0" style="width: ${w}px; height: ${h}px;">
+            <div class="w-full h-full bg-gradient-to-r from-amber-600 to-amber-800 rounded-[2px] opacity-90 border border-amber-500/20"></div>
+          </div>
+        `;
+      }
+      return `
+        <div class="rounded bg-amber-700 border border-amber-900 shadow-md flex items-center justify-center flex-shrink-0" style="width: ${w}px; height: ${h}px;">
+          <div class="w-full h-full bg-gradient-to-br from-amber-600 to-amber-800 rounded opacity-90 border border-amber-500/20"></div>
+        </div>
+      `;
+    }
+  </script>
+
+  <script>
+    // 全136枚の牌山生成
+    function createMahjongDeck() {
+      const deck = [];
+      ['m', 'p', 's'].forEach(suit => {
+        for (let num = 1; num <= 9; num++) {
+          for (let c = 0; c < 4; c++) deck.push(`${suit}${num}`);
+        }
+      });
+      for (let num = 1; num <= 7; num++) {
+        for (let c = 0; c < 4; c++) deck.push(`z${num}`);
+      }
+      // シャッフル (Fisher-Yates)
+      for (let i = deck.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [deck[i], deck[j]] = [deck[j], deck[i]];
+      }
+      return deck;
+    }
+
+    // 牌ソート用重み
+    function tileWeight(t) {
+      const suitOrder = { 'm': 0, 'p': 100, 's': 200, 'z': 300 };
+      return suitOrder[t[0]] + parseInt(t[1]);
+    }
+
+    function sortTiles(tiles) {
+      return [...tiles].sort((a, b) => tileWeight(a) - tileWeight(b));
+    }
+
+    // アガリ判定 (4面子1雀頭 または 七対子)
+    function checkAgari(handTiles) {
+      if (handTiles.length !== 14) return false;
+
+      // 牌のカウント
+      const counts = {};
+      handTiles.forEach(t => counts[t] = (counts[t] || 0) + 1);
+
+      // 七対子判定
+      const pairs = Object.values(counts).filter(c => c === 2).length;
+      if (pairs === 7) return { isSevenPairs: true };
+
+      // 通常役 (4面子1雀頭) 探索
+      // 雀頭をすべて試す
+      const uniqueTiles = Object.keys(counts);
+      for (let head of uniqueTiles) {
+        if (counts[head] >= 2) {
+          counts[head] -= 2;
+          if (canFormMelds(counts, 4)) {
+            counts[head] += 2;
+            return { isRegular: true, head };
+          }
+          counts[head] += 2;
+        }
+      }
+      return false;
+    }
+
+    // 4面子を構成可能かバックトラッキング
+    function canFormMelds(counts, meldsNeeded) {
+      if (meldsNeeded === 0) return true;
+
+      // 残っている最小の牌を見つける
+      const sortedKeys = Object.keys(counts).filter(k => counts[k] > 0).sort((a, b) => tileWeight(a) - tileWeight(b));
+      if (sortedKeys.length === 0) return true;
+      const first = sortedKeys[0];
+
+      // 1. 刻子 (3枚組) として取り出す
+      if (counts[first] >= 3) {
+        counts[first] -= 3;
+        if (canFormMelds(counts, meldsNeeded - 1)) {
+          counts[first] += 3;
+          return true;
+        }
+        counts[first] += 3;
+      }
+
+      // 2. 順子 (階段) として取り出す (字牌以外)
+      const suit = first[0];
+      const val = parseInt(first[1]);
+      if (suit !== 'z' && val <= 7) {
+        const t2 = `${suit}${val + 1}`;
+        const t3 = `${suit}${val + 2}`;
+        if (counts[t2] > 0 && counts[t3] > 0) {
+          counts[first]--;
+          counts[t2]--;
+          counts[t3]--;
+          if (canFormMelds(counts, meldsNeeded - 1)) {
+            counts[first]++;
+            counts[t2]++;
+            counts[t3]++;
+            return true;
+          }
+          counts[first]++;
+          counts[t2]++;
+          counts[t3]++;
+        }
+      }
+
+      return false;
+    }
+
+    // 向聴数 (Shanten) および待ち牌判定
+    function getWaitingTiles(hand13) {
+      const allTiles = [];
+      ['m', 'p', 's'].forEach(s => { for (let i = 1; i <= 9; i++) allTiles.push(`${s}${i}`); });
+      for (let i = 1; i <= 7; i++) allTiles.push(`z${i}`);
+
+      const waits = [];
+      for (let cand of allTiles) {
+        const testHand = [...hand13, cand];
+        if (checkAgari(testHand)) {
+          waits.push(cand);
+        }
+      }
+      return waits;
+    }
+
+    // 簡易向聴数 (テンパイ・一向聴・ノーテン)
+    function calculateShantenSimple(hand13) {
+      const waits = getWaitingTiles(hand13);
+      if (waits.length > 0) return { shanten: 0, waits }; // テンパイ
+
+      // 1枚仮想で加えてテンパイになるか (一向聴チェック)
+      const allTiles = ['m1','m2','m3','m4','m5','m6','m7','m8','m9','p1','p2','p3','p4','p5','p6','p7','p8','p9','s1','s2','s3','s4','s5','s6','s7','s8','s9','z1','z2','z3','z4','z5','z6','z7'];
+      for (let t of allTiles) {
+        const subHand = [...hand13, t];
+        for (let i = 0; i < subHand.length; i++) {
+          const cutHand = [...subHand];
+          cutHand.splice(i, 1);
+          if (getWaitingTiles(cutHand).length > 0) {
+            return { shanten: 1, waits: [] }; // 一向聴
+          }
+        }
+      }
+      return { shanten: 2, waits: [] }; // 二向聴以上
+    }
+
+    // 役判定
+    function evaluateYaku(hand14, isRiichi, isTsumo, isMenzen, winningTile, doraTiles = []) {
+      const yakuList = [];
+      let han = 0;
+
+      if (isRiichi) {
+        yakuList.push({ name: '立直 (リーチ)', han: 1 });
+        han += 1;
+      }
+      if (isMenzen && isTsumo) {
+        yakuList.push({ name: '門前清自摸和 (ツモ)', han: 1 });
+        han += 1;
+      }
+
+      // 断幺九 (タンヤオ)
+      const hasTerminals = hand14.some(t => {
+        const s = t[0];
+        const v = parseInt(t[1]);
+        return s === 'z' || v === 1 || v === 9;
+      });
+      if (!hasTerminals) {
+        yakuList.push({ name: '断幺九 (タンヤオ)', han: 1 });
+        han += 1;
+      }
+
+      // 七対子 (チートイツ)
+      const counts = {};
+      hand14.forEach(t => counts[t] = (counts[t] || 0) + 1);
+      if (Object.values(counts).filter(c => c === 2).length === 7) {
+        yakuList.push({ name: '七対子 (チートイツ)', han: 2 });
+        han += 2;
+      }
+
+      // 役牌 (白、發、中)
+      if (counts['z5'] >= 3) { yakuList.push({ name: '役牌 (白)', han: 1 }); han += 1; }
+      if (counts['z6'] >= 3) { yakuList.push({ name: '役牌 (發)', han: 1 }); han += 1; }
+      if (counts['z7'] >= 3) { yakuList.push({ name: '役牌 (中)', han: 1 }); han += 1; }
+
+      // ドラ判定
+      let doraCount = 0;
+      doraTiles.forEach(dora => {
+        doraCount += hand14.filter(t => t === dora).length;
+      });
+      if (doraCount > 0) {
+        yakuList.push({ name: `ドラ (${doraCount}枚)`, han: doraCount });
+        han += doraCount;
+      }
+
+      // 基本役がつかない場合でもゲーム進行用の基本点
+      if (yakuList.length === 0) {
+        yakuList.push({ name: '役なし (アガリ形成立)', han: 1 });
+        han = 1;
+      }
+
+      // 点数計算 (符・翻数による概算点数)
+      const fu = 30;
+      let score = 0;
+      if (han === 1) score = 1000;
+      else if (han === 2) score = 2000;
+      else if (han === 3) score = 3900;
+      else if (han === 4) score = 7700;
+      else if (han >= 5) score = 8000; // 満貫
+
+      return { yakuList, han, fu, score };
+    }
+  </script>
+
+  <script>
+    class MahjongGame {
+      constructor() {
+        this.deck = [];
+        this.players = [
+          { id: 0, name: 'あなた', score: 25000, hand: [], river: [], isRiichi: false, isMenzen: true, isCpu: false },
+          { id: 1, name: '下家', score: 25000, hand: [], river: [], isRiichi: false, isMenzen: true, isCpu: true },
+          { id: 2, name: '対面', score: 25000, hand: [], river: [], isRiichi: false, isMenzen: true, isCpu: true },
+          { id: 3, name: '上家', score: 25000, hand: [], river: [], isRiichi: false, isMenzen: true, isCpu: true }
+        ];
+        this.currentTurn = 0; // 0: Player, 1: Shimocha, 2: Toimen, 3: Kamicha
+        this.doraIndicator = null;
+        this.doraActual = null;
+        this.roundName = '東1局 0本場';
+        this.pot = 0;
+        this.lastDiscard = null;
+        this.lastDiscardPlayer = null;
+        this.state = 'IDLE'; // IDLE, PLAYER_TURN, WAITING_DISCARD, GAME_OVER
+        this.selectedIndex = -1;
+
+        this.isDeclaringRiichi = false; // リーチ宣言中（打牌待ち状態）
+        this.riichiCandidates = []; // リーチ可能打牌リスト [{ index, tileKey, waits }]
+        this.autoTsumokiri = true; // リーチ後の自動ツモ切り
+      }
+
+      startNewGame() {
+        this.players.forEach(p => {
+          p.score = 25000;
+        });
+        this.roundName = '東1局 0本場';
+        this.pot = 0;
+        this.startRound();
+      }
+
+      startRound() {
+        this.deck = createMahjongDeck();
+        this.players.forEach(p => {
+          p.hand = [];
+          p.river = [];
+          p.isRiichi = false;
+          p.riichiIndex = undefined;
+        });
+
+        this.isDeclaringRiichi = false;
+        this.riichiCandidates = [];
+
+        // 配牌 (13枚ずつ)
+        for (let i = 0; i < 13; i++) {
+          this.players.forEach(p => p.hand.push(this.deck.pop()));
+        }
+        this.players[0].hand = sortTiles(this.players[0].hand);
+
+        // ドラ表示牌の決定 (王牌から1枚めくる)
+        this.doraIndicator = this.deck.pop();
+        this.doraActual = this.calculateNextDora(this.doraIndicator);
+
+        this.currentTurn = 0; // 親 (プレイヤー) から開始
+        this.state = 'PLAYER_TURN';
+        this.updateBoardUI();
+
+        // プレイヤーの第1自摸 (14枚目)
+        this.drawTile(0);
+      }
+
+      // ドラ表示牌の次の牌を計算
+      calculateNextDora(indicator) {
+        const suit = indicator[0];
+        const val = parseInt(indicator[1]);
+        if (suit === 'z') {
+          if (val <= 4) return `z${(val % 4) + 1}`; // 東南西北
+          return `z${5 + ((val - 5 + 1) % 3)}`; // 白發中
+        }
+        return `${suit}${(val % 9) + 1}`;
+      }
+
+      // 牌をツモる
+      drawTile(playerId) {
+        if (this.deck.length <= 14) {
+          this.handleRyuukyoku(); // 流局
+          return;
+        }
+
+        const drawn = this.deck.pop();
+        const p = this.players[playerId];
+        p.hand.push(drawn);
+        this.updateDeckCountUI();
+
+        if (playerId === 0) {
+          // プレイヤーのターン
+          this.state = 'WAITING_DISCARD';
+          sound.playTileClick();
+          this.renderPlayerHand(true);
+          this.checkPlayerActions();
+
+          // リーチ後の自動ツモ切り処理
+          if (p.isRiichi) {
+            const isAgari = checkAgari(p.hand);
+            if (isAgari) {
+              // アガれる時は自動ツモ切りせず、ツモボタンを押せるようにする
+              this.setTurnMessage('【ツモ！】和了できます！');
+            } else if (this.autoTsumokiri) {
+              // アガれない牌かつ自動ツモ切りONなら少し間を置いて自動打牌
+              this.setTurnMessage('リーチ中：ツモ切りします...');
+              setTimeout(() => {
+                if (this.state === 'WAITING_DISCARD' && p.isRiichi) {
+                  this.discardTile(0, p.hand.length - 1);
+                }
+              }, 400);
+              return;
+            } else {
+              this.setTurnMessage('リーチ中：ツモ牌を切ってください');
+            }
+          } else {
+            this.setTurnMessage('あなたの番です。打牌してください');
+          }
+        } else {
+          // CPUの思考と打牌
+          this.setTurnMessage(`${p.name}が思考中...`);
+          setTimeout(() => {
+            this.cpuTurn(playerId);
+          }, 450 + Math.random() * 250);
+        }
+      }
+
+      // プレイヤーの手牌アクションチェック (リーチ・ツモ)
+      checkPlayerActions() {
+        const p = this.players[0];
+        const btnRiichi = document.getElementById('btn-riichi');
+        const btnTsumo = document.getElementById('btn-tsumo');
+        const btnCancel = document.getElementById('btn-cancel-riichi');
+        
+        btnRiichi.classList.add('hidden');
+        btnTsumo.classList.add('hidden');
+        btnCancel.classList.add('hidden');
+        this.riichiCandidates = [];
+
+        // ツモアガリチェック
+        if (checkAgari(p.hand)) {
+          btnTsumo.classList.remove('hidden');
+        }
+
+        // リーチチェック (門前、未リーチ、テンパイ可能、点数1000点以上)
+        if (!p.isRiichi && p.isMenzen && p.score >= 1000) {
+          // どの牌を切ればテンパイになるか全探索して候補を記憶
+          for (let i = 0; i < p.hand.length; i++) {
+            const tempHand = [...p.hand];
+            tempHand.splice(i, 1);
+            const waits = getWaitingTiles(tempHand);
+            if (waits.length > 0) {
+              this.riichiCandidates.push({
+                index: i,
+                tileKey: p.hand[i],
+                waits: waits
+              });
+            }
+          }
+          if (this.riichiCandidates.length > 0) {
+            btnRiichi.classList.remove('hidden');
+          }
+        }
+
+        this.updateShantenUI();
+      }
+
+      // 打牌処理
+      discardTile(playerId, tileIndex) {
+        const p = this.players[playerId];
+
+        // プレイヤーのリーチ宣言打牌成立時
+        if (playerId === 0 && this.isDeclaringRiichi) {
+          p.isRiichi = true;
+          p.score -= 1000;
+          this.pot += 1000;
+          this.isDeclaringRiichi = false;
+          sound.playRiichi();
+          this.updateScoresUI();
+          this.setTurnMessage('リーチ成立！');
+        }
+
+        const discarded = p.hand.splice(tileIndex, 1)[0];
+        p.river.push(discarded);
+        if (p.isRiichi && p.riichiIndex === undefined) {
+          p.riichiIndex = p.river.length - 1;
+        }
+        this.lastDiscard = discarded;
+        this.lastDiscardPlayer = playerId;
+
+        sound.playDiscard();
+
+        if (playerId === 0) {
+          p.hand = sortTiles(p.hand);
+          this.renderPlayerHand(false);
+          this.renderRiver(0);
+          this.hidePlayerActionButtons();
+        } else {
+          this.renderOtherPlayerHand(playerId);
+          this.renderRiver(playerId);
+        }
+
+        // ロン判定 (他家によるアガリチェック)
+        if (this.checkRonOpportunities(discarded, playerId)) {
+          return;
+        }
+
+        // 次のプレイヤーへ
+        this.currentTurn = (this.currentTurn + 1) % 4;
+        setTimeout(() => {
+          this.drawTile(this.currentTurn);
+        }, 200);
+      }
+
+      // ロンアガリ可能か検査
+      checkRonOpportunities(tile, discarderId) {
+        if (discarderId !== 0) {
+          // プレイヤーがロンできるか？
+          const p = this.players[0];
+          const testHand = [...p.hand, tile];
+          if (checkAgari(testHand)) {
+            const btnRon = document.getElementById('btn-ron');
+            const btnPass = document.getElementById('btn-pass');
+            btnRon.classList.remove('hidden');
+            btnPass.classList.remove('hidden');
+            this.setTurnMessage('ロンできます！');
+            return true;
+          }
+        }
+        return false;
+      }
+
+      // CPUの思考ロジック
+      cpuTurn(cpuId) {
+        const p = this.players[cpuId];
+        
+        // ツモアガリチェック
+        if (checkAgari(p.hand)) {
+          this.handleWin(cpuId, true);
+          return;
+        }
+
+        // CPUリーチ判定
+        if (!p.isRiichi && p.score >= 1000) {
+          for (let i = 0; i < p.hand.length; i++) {
+            const tempHand = [...p.hand];
+            tempHand.splice(i, 1);
+            if (getWaitingTiles(tempHand).length > 0) {
+              p.isRiichi = true;
+              p.score -= 1000;
+              this.pot += 1000;
+              document.getElementById(`riichi-${this.getPlayerTargetId(cpuId)}`).classList.remove('hidden');
+              this.updateScoresUI();
+              sound.playRiichi();
+              break;
+            }
+          }
+        }
+
+        // 切る牌の決定 (字牌孤立牌・端牌から優先的に切る賢い打牌AI)
+        let discardIndex = 0;
+        const counts = {};
+        p.hand.forEach(t => counts[t] = (counts[t] || 0) + 1);
+
+        let bestScore = -999;
+        for (let i = 0; i < p.hand.length; i++) {
+          const t = p.hand[i];
+          const suit = t[0];
+          const val = parseInt(t[1]);
+          let score = 0;
+
+          // 孤立字牌は切りやすい
+          if (suit === 'z' && counts[t] === 1) score += 50;
+          // 1, 9の端牌
+          if ((val === 1 || val === 9) && counts[t] === 1) score += 30;
+          // ドラ牌は残したい
+          if (t === this.doraActual) score -= 40;
+
+          if (score > bestScore) {
+            bestScore = score;
+            discardIndex = i;
+          }
+        }
+
+        this.discardTile(cpuId, discardIndex);
+      }
+
+      // アガリ処理 (ツモまたはロン)
+      handleWin(winnerId, isTsumo) {
+        sound.playWin();
+        const winner = this.players[winnerId];
+        const isPlayer = winnerId === 0;
+
+        let handForEval = [...winner.hand];
+        if (!isTsumo && this.lastDiscard) {
+          handForEval.push(this.lastDiscard);
+        }
+
+        const evalResult = evaluateYaku(
+          handForEval,
+          winner.isRiichi,
+          isTsumo,
+          winner.isMenzen,
+          isTsumo ? winner.hand[winner.hand.length - 1] : this.lastDiscard,
+          [this.doraActual]
+        );
+
+        // 点数の移動
+        const totalPoints = evalResult.score + this.pot;
+        winner.score += totalPoints;
+        this.pot = 0;
+
+        if (isTsumo) {
+          // ツモ払い
+          const payPerCpu = Math.ceil(evalResult.score / 3);
+          this.players.forEach(p => {
+            if (p.id !== winnerId) p.score -= payPerCpu;
+          });
+        } else {
+          // ロン放銃払い
+          this.players[this.lastDiscardPlayer].score -= evalResult.score;
+        }
+
+        this.updateScoresUI();
+        this.showResultModal(winner, isTsumo, evalResult, handForEval);
+      }
+
+      // 流局処理
+      handleRyuukyoku() {
+        this.setTurnMessage('荒野流局 - 牌山がなくなりました');
+        setTimeout(() => {
+          this.showResultModal(null, false, { yakuList: [{ name: '流局', han: 0 }], fu: 0, score: 0 }, []);
+        }, 1200);
+      }
+
+      // 結果モーダルの表示
+      showResultModal(winner, isTsumo, result, tiles) {
+        const modal = document.getElementById('modal-result');
+        const badge = document.getElementById('res-winner-badge');
+        const nameEl = document.getElementById('res-winner-name');
+        const tilesEl = document.getElementById('res-tiles');
+        const yakuListEl = document.getElementById('res-yaku-list');
+        const fuHanEl = document.getElementById('res-fu-han');
+        const scoreEl = document.getElementById('res-score');
+
+        if (!winner) {
+          badge.textContent = '流局';
+          badge.className = 'inline-block bg-slate-600 text-white font-black text-sm px-3 py-0.5 rounded-full mb-2';
+          nameEl.textContent = '全員不聴 (流局)';
+          tilesEl.innerHTML = '';
+          yakuListEl.innerHTML = '<div class="text-slate-400 text-center">ノーゲーム</div>';
+          fuHanEl.textContent = '';
+          scoreEl.textContent = '0点';
+        } else {
+          badge.textContent = isTsumo ? 'ツモ和了' : 'ロン和了';
+          badge.className = 'inline-block bg-amber-500 text-slate-950 font-black text-sm px-3 py-0.5 rounded-full mb-2';
+          nameEl.textContent = `${winner.name}のアガリ！`;
+
+          // 牌一覧
+          tilesEl.innerHTML = sortTiles(tiles).map(t => {
+            return `<div class="mj-tile w-[28px] h-[40px]">${generateTileSVG(t, 24, 36)}</div>`;
+          }).join('');
+
+          // 役一覧表示
+          yakuListEl.innerHTML = result.yakuList.map(y => `
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-200 font-semibold">${y.name}</span>
+              <span class="text-amber-400 font-mono font-bold">${y.han > 0 ? y.han + '翻' : ''}</span>
+            </div>
+          `).join('');
+
+          fuHanEl.textContent = `${result.fu}符 ${result.han}翻`;
+          scoreEl.textContent = `${result.score.toLocaleString()}点`;
+        }
+
+        modal.classList.remove('hidden');
+      }
+
+      hidePlayerActionButtons() {
+        document.getElementById('btn-riichi').classList.add('hidden');
+        document.getElementById('btn-cancel-riichi').classList.add('hidden');
+        document.getElementById('btn-tsumo').classList.add('hidden');
+        document.getElementById('btn-ron').classList.add('hidden');
+        document.getElementById('btn-pass').classList.add('hidden');
+        const guideBanner = document.getElementById('riichi-guide-banner');
+        if (guideBanner) guideBanner.classList.add('hidden');
+      }
+
+      // プレイヤーの手牌を描画
+      renderPlayerHand(isDrawnSeparated = false) {
+        const container = document.getElementById('hand-player');
+        container.innerHTML = '';
+        const p = this.players[0];
+
+        const candidateIndices = this.riichiCandidates.map(c => c.index);
+
+        // リーチ宣言バナーの初期メッセージ
+        const guideBanner = document.getElementById('riichi-guide-banner');
+        const guideText = document.getElementById('riichi-guide-text');
+        if (this.isDeclaringRiichi) {
+          if (guideBanner) guideBanner.classList.remove('hidden');
+          if (this.selectedIndex !== -1 && candidateIndices.includes(this.selectedIndex)) {
+            const cand = this.riichiCandidates.find(c => c.index === this.selectedIndex);
+            const waitsStr = cand.waits.map(w => getTileName(w)).join('・');
+            if (guideText) guideText.innerHTML = `選択中: <span class="text-white bg-slate-800 px-1.5 py-0.5 rounded border border-amber-400">打【${getTileName(p.hand[this.selectedIndex])}】</span> ➜ 待ち牌: <span class="text-amber-200 text-sm font-black underline decoration-amber-400">${waitsStr}</span> (${cand.waits.length}種)`;
+          } else {
+            if (guideText) guideText.textContent = '赤枠の牌をタップして捨てる牌を選択してください';
+          }
+        } else {
+          if (guideBanner) guideBanner.classList.add('hidden');
+        }
+
+        p.hand.forEach((tileKey, index) => {
+          const isDrawTile = isDrawnSeparated && (index === p.hand.length - 1);
+          const tileEl = document.createElement('div');
+          
+          let classes = `mj-tile interactive w-[34px] h-[48px] sm:w-[42px] sm:h-[60px] ${isDrawTile ? 'ml-2 sm:ml-3' : ''}`;
+          
+          // リーチ宣言中の制御
+          if (this.isDeclaringRiichi) {
+            if (candidateIndices.includes(index)) {
+              classes += ' riichi-candidate';
+            } else {
+              // テンパイを崩す無効牌はクリック不可（誤打防止）
+              classes += ' disabled-tile';
+            }
+          } else if (p.isRiichi) {
+            // リーチ後はツモ牌以外切れない（麻雀ルール＆誤打防止）
+            if (!isDrawTile) {
+              classes += ' disabled-tile';
+            }
+          }
+
+          tileEl.className = classes;
+          tileEl.innerHTML = generateTileSVG(tileKey, 30, 42);
+
+          // リーチ宣言時：待ち牌ガイド吹き出し（簡潔表示にして見切れ防止）
+          if (this.isDeclaringRiichi && candidateIndices.includes(index)) {
+            const candidateInfo = this.riichiCandidates.find(c => c.index === index);
+            if (candidateInfo) {
+              const waitNames = candidateInfo.waits.map(w => getTileName(w)).join(' ');
+              const tip = document.createElement('div');
+              tip.className = 'wait-tooltip';
+              tip.title = `待ち牌: ${waitNames}`;
+              tip.innerHTML = `<span class="text-amber-300">待</span> ${waitNames}`;
+              tileEl.appendChild(tip);
+            }
+          }
+
+          // タップまたはクリックで打牌選択
+          tileEl.addEventListener('click', () => {
+            if (this.state !== 'WAITING_DISCARD') return;
+
+            // リーチ宣言中かつ候補以外の牌は無視
+            if (this.isDeclaringRiichi && !candidateIndices.includes(index)) return;
+
+            // リーチ成立後はツモ牌以外打牌不可
+            if (p.isRiichi && !isDrawTile) return;
+
+            if (this.selectedIndex === index) {
+              // 2回タップで打牌確定
+              this.selectedIndex = -1;
+              this.discardTile(0, index);
+            } else {
+              // 1回タップで少し浮き上がらせて選択
+              this.selectedIndex = index;
+              sound.playTileClick();
+              const allTiles = container.querySelectorAll('.mj-tile');
+              allTiles.forEach((el, i) => {
+                if (i === index) el.classList.add('selected');
+                else el.classList.remove('selected');
+              });
+
+              // リーチ宣言中に牌を選んだ時、上部の専用ガイドバーに待ち牌を大きく明瞭に表示
+              if (this.isDeclaringRiichi) {
+                const cand = this.riichiCandidates.find(c => c.index === index);
+                if (cand && guideText) {
+                  const waitsStr = cand.waits.map(w => getTileName(w)).join('・');
+                  guideText.innerHTML = `選択中: <span class="text-white bg-slate-800 px-1.5 py-0.5 rounded border border-amber-400">打【${getTileName(tileKey)}】</span> ➜ 待ち牌: <span class="text-amber-200 text-sm font-black underline decoration-amber-400">${waitsStr}</span> (${cand.waits.length}種) <span class="text-white/80 font-normal text-[10px]">※もう一度タップでリーチ打牌</span>`;
+                  this.setTurnMessage(`打【${getTileName(tileKey)}】でリーチ (待ち: ${waitsStr})`);
+                }
+              }
+            }
+          });
+
+          container.appendChild(tileEl);
+        });
+      }
+
+      // CPUの手牌 (伏せ牌) 描画
+      renderOtherPlayerHand(playerId) {
+        const target = this.getPlayerTargetId(playerId);
+        const container = document.getElementById(`hand-${target}`);
+        container.innerHTML = '';
+        const count = this.players[playerId].hand.length;
+
+        for (let i = 0; i < count; i++) {
+          const tile = document.createElement('div');
+          if (playerId === 2) {
+            // 対面: 上下逆さ (180度回転)
+            tile.className = 'transform rotate-180 flex-shrink-0';
+            tile.innerHTML = generateHiddenTileSVG(18, 26);
+          } else {
+            // 上家 (3) & 下家 (1): 横向きの伏せ牌 (幅26px, 高さ13px)
+            tile.className = 'flex-shrink-0';
+            tile.innerHTML = generateHiddenTileSVG(26, 13, true);
+          }
+          container.appendChild(tile.firstElementChild || tile);
+        }
+      }
+
+      // 捨て牌河 (River) の描画
+      renderRiver(playerId) {
+        const target = this.getPlayerTargetId(playerId);
+        const container = document.getElementById(`river-${target}`);
+        container.innerHTML = '';
+        const river = this.players[playerId].river;
+        const riichiIdx = this.players[playerId].riichiIndex;
+
+        river.forEach((tileKey, idx) => {
+          const isRiichiTile = (riichiIdx !== undefined && idx === riichiIdx);
+          const tile = document.createElement('div');
+
+          if (playerId === 0) {
+            // 自分 (南): 手前から見る正立
+            tile.className = `mj-tile w-[22px] h-[32px] sm:w-[25px] sm:h-[36px] ${isRiichiTile ? 'riichi-tile' : ''}`;
+            tile.innerHTML = generateTileSVG(tileKey, 20, 28);
+          } else if (playerId === 2) {
+            // 対面 (北): 上下逆さ (180度回転)
+            tile.className = `mj-tile tile-toimen w-[22px] h-[32px] sm:w-[25px] sm:h-[36px] ${isRiichiTile ? 'riichi-tile' : ''}`;
+            tile.innerHTML = generateTileSVG(tileKey, 20, 28);
+          } else if (playerId === 3) {
+            // 上家 (西): 横向き (90度回転)
+            if (isRiichiTile) {
+              tile.className = 'mj-tile w-[22px] h-[32px] sm:w-[25px] sm:h-[36px]';
+              tile.innerHTML = generateTileSVG(tileKey, 20, 28);
+            } else {
+              tile.className = 'mj-tile tile-side-kami';
+              tile.innerHTML = `<div class="transform rotate-90 flex items-center justify-center pointer-events-none">${generateTileSVG(tileKey, 18, 25)}</div>`;
+            }
+          } else if (playerId === 1) {
+            // 下家 (東): 横向き (-90度回転)
+            if (isRiichiTile) {
+              tile.className = 'mj-tile w-[22px] h-[32px] sm:w-[25px] sm:h-[36px]';
+              tile.innerHTML = generateTileSVG(tileKey, 20, 28);
+            } else {
+              tile.className = 'mj-tile tile-side-shimo';
+              tile.innerHTML = `<div class="transform -rotate-90 flex items-center justify-center pointer-events-none">${generateTileSVG(tileKey, 18, 25)}</div>`;
+            }
+          }
+
+          container.appendChild(tile);
+        });
+      }
+
+      getPlayerTargetId(playerId) {
+        return ['player', 'shimocha', 'toimen', 'kamicha'][playerId];
+      }
+
+      setTurnMessage(msg) {
+        document.getElementById('turn-message').textContent = msg;
+      }
+
+      // 卓全体・ドラ・捨て牌・相手手牌のUI一括更新
+      updateBoardUI() {
+        const roundBadge = document.getElementById('game-round-badge');
+        if (roundBadge) roundBadge.textContent = this.roundName;
+
+        const doraEl = document.getElementById('dora-indicator');
+        if (doraEl && this.doraIndicator) {
+          doraEl.innerHTML = `<div class="mj-tile w-[24px] h-[34px]">${generateTileSVG(this.doraIndicator, 20, 30)}</div>`;
+        }
+
+        for (let i = 0; i < 4; i++) {
+          this.renderRiver(i);
+        }
+        for (let i = 1; i <= 3; i++) {
+          this.renderOtherPlayerHand(i);
+          const badge = document.getElementById(`riichi-${this.getPlayerTargetId(i)}`);
+          if (badge) {
+            if (this.players[i].isRiichi) badge.classList.remove('hidden');
+            else badge.classList.add('hidden');
+          }
+        }
+
+        this.updateScoresUI();
+        this.updateDeckCountUI();
+      }
+
+      // 点数表示・供託の更新
+      updateScoresUI() {
+        document.getElementById('score-player').textContent = `${this.players[0].score.toLocaleString()}点`;
+        document.getElementById('score-shimocha').textContent = `${Math.floor(this.players[1].score / 1000)}k`;
+        document.getElementById('score-toimen').textContent = `${this.players[2].score.toLocaleString()}点`;
+        document.getElementById('score-kamicha').textContent = `${Math.floor(this.players[3].score / 1000)}k`;
+        const potEl = document.getElementById('center-pot');
+        if (potEl) potEl.textContent = this.pot;
+      }
+
+      // 牌山の残牌数表示 (王牌14枚を除く)
+      updateDeckCountUI() {
+        const remaining = Math.max(0, this.deck.length - 14);
+        const deckEl = document.getElementById('deck-remaining');
+        if (deckEl) deckEl.textContent = `残: ${remaining}枚`;
+      }
+
+      // 向聴数・待ち牌表示の更新
+      updateShantenUI() {
+        const p = this.players[0];
+        const display = document.getElementById('player-shanten-display');
+
+        // 13枚の時の向聴数を計算
+        const hand13 = p.hand.length === 14 ? p.hand.slice(0, 13) : p.hand;
+        const info = calculateShantenSimple(hand13);
+
+        if (info.shanten === 0) {
+          const waitsStr = info.waits.map(w => getTileName(w)).join('・');
+          display.innerHTML = `<span class="text-red-400 font-bold">聴牌！</span> 待ち: <span class="text-amber-300 font-bold">${waitsStr}</span>`;
+        } else if (info.shanten === 1) {
+          display.innerHTML = `<span class="text-emerald-300 font-semibold">一向聴</span>`;
+        } else {
+          display.innerHTML = `<span class="text-slate-400">${info.shanten}向聴</span>`;
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const game = new MahjongGame();
+      game.startNewGame();
+
+      // 理牌ボタン
+      document.getElementById('btn-sort').addEventListener('click', () => {
+        sound.playTileClick();
+        game.players[0].hand = sortTiles(game.players[0].hand);
+        game.renderPlayerHand(game.players[0].hand.length === 14);
+      });
+
+      // リーチボタン押下：リーチ宣言モードへ移行
+      document.getElementById('btn-riichi').addEventListener('click', () => {
+        sound.playTileClick();
+        game.isDeclaringRiichi = true;
+        game.selectedIndex = -1;
+        document.getElementById('btn-riichi').classList.add('hidden');
+        document.getElementById('btn-cancel-riichi').classList.remove('hidden');
+        document.getElementById('riichi-guide-banner').classList.remove('hidden');
+        game.setTurnMessage('リーチする牌を選択してください（赤枠の牌のみ切れます）');
+        game.renderPlayerHand(true);
+      });
+
+      // リーチキャンセルボタン
+      document.getElementById('btn-cancel-riichi').addEventListener('click', () => {
+        sound.playTileClick();
+        game.isDeclaringRiichi = false;
+        game.selectedIndex = -1;
+        document.getElementById('btn-cancel-riichi').classList.add('hidden');
+        document.getElementById('btn-riichi').classList.remove('hidden');
+        document.getElementById('riichi-guide-banner').classList.add('hidden');
+        game.setTurnMessage('あなたの番です。打牌してください');
+        game.renderPlayerHand(true);
+      });
+
+      // 自動ツモ切りチェックボックス
+      const checkAutoTsumo = document.getElementById('check-auto-tsumo');
+      checkAutoTsumo.addEventListener('change', (e) => {
+        game.autoTsumokiri = e.target.checked;
+      });
+
+      // ツモボタン
+      document.getElementById('btn-tsumo').addEventListener('click', () => {
+        game.handleWin(0, true);
+      });
+
+      // ロンボタン
+      document.getElementById('btn-ron').addEventListener('click', () => {
+        game.handleWin(0, false);
+      });
+
+      // スルーボタン
+      document.getElementById('btn-pass').addEventListener('click', () => {
+        game.hidePlayerActionButtons();
+        game.currentTurn = (game.currentTurn + 1) % 4;
+        setTimeout(() => game.drawTile(game.currentTurn), 200);
+      });
+
+      // 次の局ボタン
+      document.getElementById('btn-next-round').addEventListener('click', () => {
+        document.getElementById('modal-result').classList.add('hidden');
+        game.startRound();
+      });
+
+      // 新対局ボタン
+      document.getElementById('btn-restart').addEventListener('click', () => {
+        document.getElementById('modal-result').classList.add('hidden');
+        game.startNewGame();
+      });
+
+      // 効果音ボタン
+      const btnSound = document.getElementById('btn-sound');
+      btnSound.addEventListener('click', () => {
+        sound.enabled = !sound.enabled;
+        btnSound.textContent = sound.enabled ? '🔊' : '🔇';
+        btnSound.classList.toggle('text-slate-500', !sound.enabled);
+      });
+
+      // 役一覧モーダル
+      const modalRules = document.getElementById('modal-rules');
+      document.getElementById('btn-rule').addEventListener('click', () => {
+        modalRules.classList.remove('hidden');
+      });
+      document.getElementById('btn-close-rules').addEventListener('click', () => {
+        modalRules.classList.add('hidden');
+      });
+      document.getElementById('btn-close-rules-2').addEventListener('click', () => {
+        modalRules.classList.add('hidden');
+      });
+    });
+  </script>
+</body>
+</html>
