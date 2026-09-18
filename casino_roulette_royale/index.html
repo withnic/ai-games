@@ -827,6 +827,83 @@
     </div>
   </div>
 
+  <!-- MODAL: Reset & Game Mode Confirmation -->
+  <div id="reset-mode-confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md hidden">
+    <div class="bg-slate-900 border-2 border-yellow-500/70 rounded-2xl max-w-md w-full p-5 shadow-2xl text-white flex flex-col max-h-[92vh]">
+      <div class="flex justify-between items-center pb-2.5 border-b border-white/10 flex-shrink-0">
+        <h3 id="reset-modal-heading" class="font-casino text-base sm:text-lg font-bold text-yellow-400 flex items-center gap-2">
+          <span>🔄</span> 次のゲームを開始
+        </h3>
+        <button id="reset-confirm-modal-close" class="text-gray-400 hover:text-white text-2xl font-bold px-2 leading-none">&times;</button>
+      </div>
+
+      <div class="my-3 space-y-3.5 text-xs flex-1 overflow-y-auto custom-scroll pr-1">
+        <div class="p-2.5 rounded-xl bg-black/40 border border-white/10">
+          <p id="reset-modal-subheading" class="text-gray-300 font-medium leading-relaxed">
+            現在のメンバーのまま、全員の所持金を$1,000に初期化します。
+          </p>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-bold mb-1.5 flex items-center justify-between">
+            <span>1. 次のゲームの制限ルール</span>
+            <span class="text-[10.5px] text-yellow-400 font-normal">タップで変更可能</span>
+          </label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" class="reset-rule-btn py-2 px-1 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-yellow-300 font-black text-center text-xs ring-1 ring-yellow-400" data-type="spins">
+              🎲 スピン数制
+            </button>
+            <button type="button" class="reset-rule-btn py-2 px-1 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center text-xs hover:border-white/30" data-type="time">
+              ⏱️ 制限時間制
+            </button>
+            <button type="button" class="reset-rule-btn py-2 px-1 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center text-xs hover:border-white/30" data-type="endless">
+              ♾️ 無制限
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-bold mb-1.5 flex items-center justify-between">
+            <span>2. プレイ時間 / ボリューム</span>
+            <span class="text-[10.5px] text-gray-400">推奨目安が連動</span>
+          </label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" class="reset-preset-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30" data-preset="quick">
+              <div class="font-bold text-yellow-300 text-xs sm:text-sm">⚡ クイック</div>
+              <div class="reset-preset-desc text-[10px] text-gray-400 mt-0.5" data-preset="quick">5スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-0.5">$100〜200</div>
+            </button>
+            <button type="button" class="reset-preset-btn p-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-center ring-1 ring-yellow-400" data-preset="standard">
+              <div class="font-bold text-yellow-300 text-xs sm:text-sm">⚖️ スタンダード</div>
+              <div class="reset-preset-desc text-[10px] text-gray-400 mt-0.5" data-preset="standard">10スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-0.5">$30〜70</div>
+            </button>
+            <button type="button" class="reset-preset-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30" data-preset="long">
+              <div class="font-bold text-yellow-300 text-xs sm:text-sm">🏛️ じっくり</div>
+              <div class="reset-preset-desc text-[10px] text-gray-400 mt-0.5" data-preset="long">20スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-0.5">$10〜30</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="p-2.5 bg-black/60 rounded-xl border border-yellow-500/25">
+          <p id="reset-mode-advice-text" class="text-[11px] text-gray-300 leading-relaxed">
+            【スタンダード（10スピン）】は1回あたり所持金の約3〜7%（$30〜$70）を賭けるのが適正です。
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2.5 border-t border-white/10 flex-shrink-0">
+        <button type="button" id="btn-reset-modal-cancel" class="py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold text-xs border border-white/10 transition active:scale-95">
+          キャンセル
+        </button>
+        <button type="button" id="btn-reset-modal-start" class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-black text-xs shadow-md transition active:scale-95 border border-yellow-300">
+          🚀 この設定で開始
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification -->
   <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900/90 text-white px-5 py-3 rounded-xl border border-yellow-500/40 shadow-2xl flex items-center gap-3 backdrop-blur-md pointer-events-none">
     <div id="toast-icon" class="text-xl">💰</div>
@@ -3693,92 +3770,206 @@
       });
     }
 
+    let pendingResetActionType = 'same_members'; // 'same_members' | 'reset_all'
+    let resetModalTempRuleType = 'spins';
+    let resetModalTempPreset = 'standard';
+
+    function openResetModeConfirmModal(actionType) {
+      if (isSpinning) {
+        showToast("回転中", "ルーレット回転中はリセットできません", "⚠️");
+        return;
+      }
+
+      pendingResetActionType = actionType;
+      resetModalTempRuleType = gameRuleType;
+      resetModalTempPreset = gamePreset;
+
+      const modal = document.getElementById('reset-mode-confirm-modal');
+      const heading = document.getElementById('reset-modal-heading');
+      const subheading = document.getElementById('reset-modal-subheading');
+      
+      // Fallback: If modal element is somehow missing, execute reset directly
+      if (!modal) {
+        executeConfirmedReset();
+        return;
+      }
+
+      if (actionType === 'same_members') {
+        if (heading) heading.innerHTML = `<span>🔄</span> 同じメンバーで次のゲームへ`;
+        if (subheading) subheading.textContent = `現在のメンバー（${players.length}名）のまま、全員の所持金を$1,000に初期化します。`;
+      } else {
+        if (heading) heading.innerHTML = `<span>🧹</span> 参加者をリセット (初期の1人に戻す)`;
+        if (subheading) subheading.textContent = `他の参加者を全員クリアし、初期のあなた1人の状態（所持金$1,000）に戻します。`;
+      }
+
+      refreshResetModalUI();
+      modal.classList.remove('hidden');
+    }
+
+    function refreshResetModalUI() {
+      const ruleBtns = document.querySelectorAll('.reset-rule-btn');
+      ruleBtns.forEach(btn => {
+        const t = btn.dataset.type;
+        if (t === resetModalTempRuleType) {
+          btn.className = "reset-rule-btn py-2 px-1 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-yellow-300 font-black text-center text-xs ring-1 ring-yellow-400";
+        } else {
+          btn.className = "reset-rule-btn py-2 px-1 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center text-xs hover:border-white/30";
+        }
+      });
+
+      const descs = document.querySelectorAll('.reset-preset-desc');
+      descs.forEach(d => {
+        const p = d.dataset.preset;
+        if (resetModalTempRuleType === 'spins') {
+          if (p === 'quick') d.textContent = '5スピン';
+          else if (p === 'standard') d.textContent = '10スピン';
+          else if (p === 'long') d.textContent = '20スピン';
+        } else if (resetModalTempRuleType === 'time') {
+          if (p === 'quick') d.textContent = '3分間';
+          else if (p === 'standard') d.textContent = '7分間';
+          else if (p === 'long') d.textContent = '15分間';
+        } else {
+          d.textContent = '自由';
+        }
+      });
+
+      const presetBtns = document.querySelectorAll('.reset-preset-btn');
+      presetBtns.forEach(btn => {
+        const p = btn.dataset.preset;
+        if (p === resetModalTempPreset) {
+          btn.className = "reset-preset-btn p-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-center ring-1 ring-yellow-400";
+        } else {
+          btn.className = "reset-preset-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30";
+        }
+      });
+
+      const adviceText = document.getElementById('reset-mode-advice-text');
+      if (adviceText && PRESET_CONFIGS[resetModalTempPreset]) {
+        adviceText.textContent = PRESET_CONFIGS[resetModalTempPreset].advice;
+      }
+    }
+
+    function executeConfirmedReset() {
+      // Apply selected game mode
+      gameRuleType = resetModalTempRuleType;
+      gamePreset = resetModalTempPreset;
+
+      isGameOver = false;
+
+      if (pendingResetActionType === 'same_members') {
+        players.forEach(p => {
+          p.balance = 1000;
+          p.initialBalance = 1000;
+          p.mood = 'neutral';
+          p.bets.clear();
+          p.lastRoundBets = null;
+          p.lastRoundTotalBet = 0;
+          p.roundHistory = [];
+          p.speech = p.isCpu ? (p.profileRef ? p.profileRef.greeting : 'よろしく！') : 'さあ勝負だ！ルーレット回すぞ！';
+        });
+
+        resetGameModeCounters();
+        startNewBettingRound();
+
+        const btnSpin = document.getElementById('btn-spin');
+        const btnNextRound = document.getElementById('btn-next-round');
+        if (btnSpin) {
+          btnSpin.classList.remove('hidden');
+          btnSpin.disabled = false;
+        }
+        if (btnNextRound) btnNextRound.classList.add('hidden');
+
+        playWinSound();
+        showToast("ゲーム開始", `モード: ${PRESET_CONFIGS[gamePreset].label}（メンバー継続）で新ゲームを開始しました！`, "🔄");
+
+      } else if (pendingResetActionType === 'reset_all') {
+        if (isSpectatorAutoPlay) {
+          toggleSpectatorAutoPlay(false);
+        }
+
+        players = [
+          {
+            id: 1,
+            name: 'あなた (蓮)',
+            title: '勝負に挑むチャレンジャー',
+            isCpu: false,
+            personality: null,
+            profileRef: UNIQUE_CHARACTERS.human[0],
+            colorIndex: 0,
+            balance: 1000,
+            initialBalance: 1000,
+            mood: 'neutral',
+            speech: 'さあ勝負だ！ルーレット回すぞ！',
+            bets: new Map(),
+            roundHistory: []
+          }
+        ];
+
+        activePlayerId = 1;
+        selectedChipValue = 1;
+        isAllInSelected = false;
+
+        resetGameModeCounters();
+        startNewBettingRound();
+
+        const btnSpin = document.getElementById('btn-spin');
+        const btnNextRound = document.getElementById('btn-next-round');
+        if (btnSpin) {
+          btnSpin.classList.remove('hidden');
+          btnSpin.disabled = false;
+        }
+        if (btnNextRound) btnNextRound.classList.add('hidden');
+
+        playWinSound();
+        showToast("リセット完了", `モード: ${PRESET_CONFIGS[gamePreset].label}（1人初期状態）で新ゲームを開始しました！`, "🧹");
+      }
+    }
+
     function setupResetGameButton() {
       const btnReset = document.getElementById('btn-reset-game');
       const btnResetAll = document.getElementById('btn-reset-all-players');
+      const modal = document.getElementById('reset-mode-confirm-modal');
+      const btnClose = document.getElementById('reset-confirm-modal-close');
+      const btnCancel = document.getElementById('btn-reset-modal-cancel');
+      const btnStart = document.getElementById('btn-reset-modal-start');
 
       if (btnReset) {
         btnReset.addEventListener('click', () => {
-          if (isSpinning) {
-            showToast("回転中", "ルーレット回転中はリセットできません", "⚠️");
-            return;
-          }
-
-          isGameOver = false;
-          players.forEach(p => {
-            p.balance = 1000;
-            p.initialBalance = 1000;
-            p.mood = 'neutral';
-            p.bets.clear();
-            p.lastRoundBets = null;
-            p.lastRoundTotalBet = 0;
-            p.roundHistory = [];
-            p.speech = p.isCpu ? (p.profileRef ? p.profileRef.greeting : 'よろしく！') : 'さあ勝負だ！ルーレット回すぞ！';
-          });
-
-          resetGameModeCounters();
-          startNewBettingRound();
-
-          const btnSpin = document.getElementById('btn-spin');
-          const btnNextRound = document.getElementById('btn-next-round');
-          if (btnSpin) {
-            btnSpin.classList.remove('hidden');
-            btnSpin.disabled = false;
-          }
-          if (btnNextRound) btnNextRound.classList.add('hidden');
-
-          playWinSound();
-          showToast("メンバー継続リセット", "現在のメンバー全員の所持金が$1,000に初期化され、次のゲームが開始されました！", "🔄");
+          openResetModeConfirmModal('same_members');
         });
       }
 
       if (btnResetAll) {
         btnResetAll.addEventListener('click', () => {
-          if (isSpinning) {
-            showToast("回転中", "ルーレット回転中はリセットできません", "⚠️");
-            return;
-          }
+          openResetModeConfirmModal('reset_all');
+        });
+      }
 
-          if (isSpectatorAutoPlay) {
-            toggleSpectatorAutoPlay(false);
-          }
+      if (btnClose && modal) {
+        btnClose.addEventListener('click', () => modal.classList.add('hidden'));
+      }
+      if (btnCancel && modal) {
+        btnCancel.addEventListener('click', () => modal.classList.add('hidden'));
+      }
 
-          isGameOver = false;
-          players = [
-            {
-              id: 1,
-              name: 'あなた (蓮)',
-              title: '勝負に挑むチャレンジャー',
-              isCpu: false,
-              personality: null,
-              profileRef: UNIQUE_CHARACTERS.human[0],
-              colorIndex: 0,
-              balance: 1000,
-              initialBalance: 1000,
-              mood: 'neutral',
-              speech: 'さあ勝負だ！ルーレット回すぞ！',
-              bets: new Map(),
-              roundHistory: []
-            }
-          ];
+      document.querySelectorAll('.reset-rule-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          resetModalTempRuleType = btn.dataset.type;
+          refreshResetModalUI();
+        });
+      });
 
-          activePlayerId = 1;
-          selectedChipValue = 1;
-          isAllInSelected = false;
+      document.querySelectorAll('.reset-preset-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          resetModalTempPreset = btn.dataset.preset;
+          refreshResetModalUI();
+        });
+      });
 
-          resetGameModeCounters();
-          startNewBettingRound();
-
-          const btnSpin = document.getElementById('btn-spin');
-          const btnNextRound = document.getElementById('btn-next-round');
-          if (btnSpin) {
-            btnSpin.classList.remove('hidden');
-            btnSpin.disabled = false;
-          }
-          if (btnNextRound) btnNextRound.classList.add('hidden');
-
-          playWinSound();
-          showToast("参加者リセット完了", "参加者がクリアされ、初期のあなた1人の状態に戻りました！", "🧹");
+      if (btnStart && modal) {
+        btnStart.addEventListener('click', () => {
+          modal.classList.add('hidden');
+          executeConfirmedReset();
         });
       }
     }
@@ -4002,19 +4193,7 @@
       if (btnRestart) {
         btnRestart.addEventListener('click', () => {
           if (modal) modal.classList.add('hidden');
-          isGameOver = false;
-          players.forEach(p => {
-            p.balance = 1000;
-            p.initialBalance = 1000;
-            p.mood = 'neutral';
-            p.bets.clear();
-            p.roundHistory = [];
-            p.speech = p.isCpu ? (p.profileRef ? p.profileRef.greeting : 'よろしく！') : 'さあ勝負だ！ルーレット回すぞ！';
-          });
-          resetGameModeCounters();
-          refreshAllChipBadges();
-          startNewBettingRound();
-          showToast("リセット完了", "全員に新しい軍資金 $1,000 が支給され、ラウンドが初期化されました！", "💵");
+          openResetModeConfirmModal('same_members');
         });
       }
     }
