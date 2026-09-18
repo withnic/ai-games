@@ -1,0 +1,3443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Casino Roulette Royale</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js for dynamic casino sounds -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+  <!-- Google Fonts: Cinzel & Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body {
+      font-family: 'Inter', sans-serif;
+      background: radial-gradient(circle at center, #1b231d 0%, #0c100e 100%);
+      color: #f1f5f9;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .font-casino {
+      font-family: 'Cinzel', serif;
+    }
+    /* Avatar animations */
+    @keyframes ecstacyBounce {
+      0%, 100% { transform: translateY(0) scale(1); }
+      50% { transform: translateY(-5px) scale(1.08) rotate(2deg); }
+    }
+    @keyframes panicShake {
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-3px) rotate(-2deg); }
+      40% { transform: translateX(3px) rotate(2deg); }
+      60% { transform: translateX(-2px); }
+      80% { transform: translateX(2px); }
+    }
+    .avatar-ecstatic {
+      animation: ecstacyBounce 0.8s infinite ease-in-out;
+      filter: drop-shadow(0 0 8px rgba(250, 204, 21, 0.7));
+    }
+    .avatar-panicked {
+      animation: panicShake 0.4s infinite ease-in-out;
+    }
+    .player-bankrupt-card {
+      filter: grayscale(0.85);
+      opacity: 0.75;
+      border-color: #ef4444 !important;
+      background: rgba(40, 10, 10, 0.7) !important;
+    }
+    .speech-bubble {
+      position: relative;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .speech-bubble::after {
+      content: '';
+      position: absolute;
+      left: 14px;
+      bottom: -6px;
+      border-width: 6px 6px 0;
+      border-style: solid;
+      border-color: rgba(15, 23, 42, 0.95) transparent;
+      display: block;
+      width: 0;
+    }
+    /* Felt & Wood Finish */
+    .felt-table {
+      background: radial-gradient(ellipse at center, #0f5132 0%, #0a3d24 75%, #062616 100%);
+      box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.7), 0 20px 40px rgba(0, 0, 0, 0.6);
+      border: 6px solid #4a341b;
+      border-radius: 18px;
+    }
+    .wood-border {
+      background: linear-gradient(135deg, #5c3b1e 0%, #2f1d0d 50%, #4a2f16 100%);
+      box-shadow: inset 0 2px 4px rgba(255,255,255,0.2), 0 8px 24px rgba(0,0,0,0.8);
+    }
+    /* Bet grid styling */
+    .bet-cell {
+      position: relative;
+      transition: all 0.15s ease;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      border: 1px solid rgba(255, 255, 255, 0.25);
+    }
+    .bet-cell:hover {
+      filter: brightness(1.25);
+      border-color: #facc15;
+      z-index: 10;
+    }
+    .bet-cell:active {
+      transform: scale(0.96);
+    }
+    .num-oval {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 9999px;
+      width: 90%;
+      height: 84%;
+      min-height: 24px;
+      box-shadow: inset 0 1px 2px rgba(255,255,255,0.3), 0 2px 4px rgba(0,0,0,0.5);
+    }
+    .chips-stack-wrapper {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: flex;
+      gap: 2px;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 20;
+    }
+    .bet-chip-badge {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      color: #fff;
+      font-size: 8px;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.8), inset 0 1px 2px rgba(255,255,255,0.6);
+      border: 1.5px dashed rgba(255,255,255,0.9);
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+    @keyframes popIn {
+      0% { transform: scale(0.4); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .casino-chip {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 11px;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.6), inset 0 2px 3px rgba(255,255,255,0.4);
+    }
+    .casino-chip.active-chip {
+      transform: translateY(-5px) scale(1.1);
+      box-shadow: 0 8px 16px rgba(250, 204, 21, 0.4), 0 0 0 3px #facc15;
+    }
+    /* Custom scrollbar */
+    .custom-scroll::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    .custom-scroll::-webkit-scrollbar-track {
+      background: rgba(0,0,0,0.25);
+      border-radius: 3px;
+    }
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background: rgba(250, 204, 21, 0.4);
+      border-radius: 3px;
+    }
+    /* Grid 14-column utility */
+    .grid-cols-14 {
+      grid-template-columns: repeat(14, minmax(0, 1fr));
+    }
+    #bet-tooltip {
+      position: fixed;
+      pointer-events: none;
+      z-index: 100;
+      opacity: 0;
+      transform: scale(0.92) translateY(6px);
+      transition: opacity 0.15s ease, transform 0.15s ease;
+      background: rgba(10, 15, 26, 0.96);
+      border: 1.5px solid rgba(250, 204, 21, 0.6);
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.8), 0 0 15px rgba(234, 179, 8, 0.2);
+      border-radius: 12px;
+      backdrop-filter: blur(8px);
+      max-width: 250px;
+      width: max-content;
+    }
+    #bet-tooltip.show {
+      opacity: 1;
+      transform: scale(1) translateY(0);
+    }
+    .bet-target-highlight {
+      box-shadow: inset 0 0 0 2px #fde047, 0 0 10px rgba(250, 204, 21, 0.75) !important;
+      filter: brightness(1.25) !important;
+      z-index: 15 !important;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-2 sm:p-4 overflow-x-hidden">
+
+  <header class="max-w-7xl w-full mx-auto flex flex-wrap items-center justify-between gap-3 px-4 py-3 bg-black/40 backdrop-blur-md rounded-2xl border border-yellow-600/30 shadow-2xl">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-full bg-gradient-to-tr from-yellow-600 to-amber-300 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-yellow-500/20 text-lg">
+        ♠
+      </div>
+      <div>
+        <h1 class="font-casino text-xl sm:text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-yellow-400 to-amber-500">
+          ROULETTE ROYALE
+        </h1>
+        <p class="text-[11px] text-amber-200/70 tracking-widest uppercase">Multiplayer & AI Casino</p>
+      </div>
+    </div>
+
+    <!-- History Track -->
+    <div class="flex items-center gap-2 bg-black/50 px-3 py-1.5 rounded-xl border border-white/10 overflow-x-auto max-w-full sm:max-w-xs">
+      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider whitespace-nowrap">出目:</span>
+      <div id="history-container" class="flex items-center gap-1.5 overflow-x-auto">
+        <!-- Dynamic History Badges -->
+      </div>
+    </div>
+
+    <!-- Spectator, Cashout & Player Controls -->
+    <div class="flex items-center flex-wrap gap-2">
+      <!-- Game Mode Status / Setup Button -->
+      <button id="btn-open-mode-settings" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/40 font-bold text-xs shadow-md transition active:scale-95" title="ゲーム終了条件（スピン数または時間制限）を設定します">
+        <span id="game-mode-icon">🎯</span>
+        <span id="game-mode-display-text">モード: 10スピン制</span>
+        <span id="game-mode-counter-badge" class="ml-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px]">残10回</span>
+      </button>
+
+      <!-- Cashout (Game End) Button - Only visible in endless mode -->
+      <button id="btn-cashout" class="hidden flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-600 hover:from-amber-500 hover:to-yellow-500 text-white font-bold text-xs shadow-lg transition active:scale-95 border border-yellow-300/40" title="これまでの利益を確定してカジノを退店します">
+        <span>💰</span> 精算 (退店)
+      </button>
+
+      <!-- 4 Faction Spectator CPU Battle Preset -->
+      <button id="btn-cpu-battle-preset" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-800 to-indigo-800 hover:from-purple-700 hover:to-indigo-700 text-purple-100 border border-purple-400/50 font-bold text-xs shadow-lg transition active:scale-95" title="4大派閥の看板CPUを揃えて観戦対戦を即時開始します">
+        <span>⚔️</span> 4派閥CPU観戦対決
+      </button>
+
+      <!-- Spectator Auto-Play Toggle -->
+      <div class="flex items-center bg-black/60 rounded-xl p-1 border border-yellow-500/30">
+        <button id="btn-spectator-toggle" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-gray-300 hover:text-white">
+          <span id="spectator-icon">👁️</span>
+          <span id="spectator-text">観戦オート: OFF</span>
+        </button>
+        <!-- Speed Selector -->
+        <select id="spectator-speed" class="bg-slate-800 text-yellow-400 text-xs font-semibold rounded-md px-1.5 py-1 border border-white/10 focus:outline-none">
+          <option value="slow">ゆっくり (6秒)</option>
+          <option value="normal" selected>普通 (3.5秒)</option>
+          <option value="fast">サクサク (2秒)</option>
+        </select>
+      </div>
+
+      <!-- Add Player Action -->
+      <button id="btn-open-add-player" class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs shadow-md transition active:scale-95 disabled:opacity-40 disabled:pointer-events-none">
+        <span>＋</span> キャラ追加
+        <span id="player-count-badge" class="px-1.5 py-0.2 bg-black/30 rounded text-[10px] text-white">1/4</span>
+      </button>
+    </div>
+  </header>
+
+  <section class="max-w-7xl w-full mx-auto my-2">
+    <div class="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+      <span>参加メンバー (最大4人 / 「🔁入替」で好きなキャラに変更可能 / 二つ名の下に今回の賭け先を一覧表示)</span>
+      <span class="text-amber-400/90 text-xs font-medium">※ 全16キャラ完全固有セリフ・賭け先表示対応</span>
+    </div>
+    <div id="players-list-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+      <!-- Dynamically generated player cards with active bet badges under title -->
+    </div>
+  </section>
+
+  <main class="max-w-7xl w-full mx-auto my-2 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+    <!-- LEFT: Roulette Wheel & Ball Canvas Area -->
+    <div class="lg:col-span-5 flex flex-col items-center justify-center bg-black/30 p-4 rounded-3xl border border-white/10 shadow-2xl backdrop-blur-sm">
+      <div class="relative w-full max-w-[360px] sm:max-w-[420px] aspect-square flex items-center justify-center">
+        <!-- Decorative Outer Bezel -->
+        <div class="absolute inset-0 rounded-full wood-border p-3 flex items-center justify-center">
+          <div class="w-full h-full rounded-full border-4 border-yellow-600/60 shadow-inner bg-[#140b05]"></div>
+        </div>
+
+        <!-- Wheel Canvas -->
+        <canvas id="roulette-canvas" width="400" height="400" class="relative z-10 w-full h-full cursor-pointer"></canvas>
+
+        <!-- Result Floating Overlay -->
+        <div id="result-overlay" class="absolute z-20 pointer-events-none flex flex-col items-center justify-center transition-all duration-300 opacity-0 scale-50">
+          <div id="result-badge" class="w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-2xl border-4 border-yellow-400">
+            <span id="result-number" class="text-3xl font-black text-white drop-shadow-md">0</span>
+            <span id="result-text" class="text-[10px] font-bold uppercase tracking-wider text-white/90">GREEN</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Wheel Status Banner -->
+      <div class="mt-4 w-full flex items-center justify-between px-4 py-2 rounded-xl bg-black/40 border border-white/5">
+        <div class="flex items-center gap-2">
+          <span id="spin-indicator-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+          <span id="spin-status-text" class="text-xs font-semibold text-gray-300">ベットを受け付けています</span>
+        </div>
+        <div id="win-loss-feedback" class="text-xs font-bold text-yellow-400 tracking-wide"></div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Casino Felt Betting Table -->
+    <div class="lg:col-span-7 flex flex-col gap-3">
+      <!-- Active player reminder banner -->
+      <div id="active-player-banner" class="px-4 py-1.5 rounded-xl bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between text-xs">
+        <div class="flex items-center gap-2">
+          <span class="text-gray-400">現在ベット操作:</span>
+          <span id="active-player-name" class="font-bold text-yellow-400">あなた (蓮)</span>
+        </div>
+        <!-- Recommended Bet Guidance Widget -->
+        <div id="recommended-bet-guide" class="flex items-center gap-1.5 text-[11px] bg-black/60 px-2.5 py-0.5 rounded-lg border border-yellow-400/30">
+          <span class="text-yellow-400 font-semibold">💡 推奨ベット目安:</span>
+          <span id="recommended-bet-range" class="font-mono font-bold text-emerald-300">$30〜$70</span>
+          <span id="current-bet-evaluation-tag" class="text-[9.5px] px-1.5 py-0.2 rounded bg-emerald-900/70 text-emerald-300 border border-emerald-500/40 font-bold">適正</span>
+        </div>
+        <div class="text-gray-300">
+          選択チップ: <span id="active-chip-value-display" class="font-bold text-white">$1</span>
+        </div>
+      </div>
+
+      <!-- Action & Chip Controls (Moved ABOVE the betting felt, directly accessible next to the wheel) -->
+      <div class="bg-black/50 backdrop-blur-md p-2.5 sm:p-3 rounded-2xl border border-yellow-500/30 flex flex-wrap items-center justify-between gap-2 shadow-2xl">
+        <!-- Chip selector buttons -->
+        <div class="flex items-center gap-2 overflow-x-auto py-0.5">
+          <div class="casino-chip active-chip bg-slate-200 text-slate-900 border-2 border-slate-400" data-chip-value="1">$1</div>
+          <div class="casino-chip bg-red-600 text-white border-2 border-red-300" data-chip-value="5">$5</div>
+          <div class="casino-chip bg-emerald-600 text-white border-2 border-emerald-300" data-chip-value="25">$25</div>
+          <div class="casino-chip bg-neutral-900 text-yellow-400 border-2 border-yellow-500" data-chip-value="100">$100</div>
+          <div class="casino-chip bg-purple-700 text-white border-2 border-purple-300" data-chip-value="500">$500</div>
+
+          <!-- ALL IN Button -->
+          <button id="btn-all-in" class="px-3 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-rose-600 via-red-600 to-amber-600 text-white font-black text-xs shadow-lg transition active:scale-95 border-2 border-yellow-400 hover:brightness-110 flex items-center gap-1 whitespace-nowrap ml-1" title="手持ちの所持金全額を一撃で賭けます">
+            <span>🔥</span> ALL IN
+          </button>
+        </div>
+
+        <!-- Action Buttons: Clear, Double, Spin -->
+        <div class="flex items-center gap-2">
+          <button id="btn-clear" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold text-xs border border-white/10 transition active:scale-95" title="あなたのベットをすべてクリアします">
+            クリア
+          </button>
+          <button id="btn-double" class="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold text-xs border border-yellow-500/30 transition active:scale-95" title="現在のベット額を2倍にします">
+            ×2倍
+          </button>
+          <button id="btn-spin" class="px-6 py-2 rounded-xl bg-gradient-to-r from-yellow-500 via-amber-400 to-yellow-500 hover:brightness-110 text-slate-950 font-black text-sm tracking-wider shadow-xl transition active:scale-95 border border-yellow-300">
+            SPIN !!
+          </button>
+        </div>
+      </div>
+
+      <!-- Authentic Vertical Casino Felt Table (Matching Image Layout) -->
+      <div class="felt-table p-2 sm:p-3 text-white max-w-[480px] mx-auto w-full">
+        <!-- 5 Columns: [Outside (Col 1)] [Dozens (Col 2)] [Numbers (Cols 3, 4, 5)] -->
+        <div class="grid grid-cols-5 gap-1 select-none text-xs font-bold">
+          <!-- Top Row: Logo & Zero (0) -->
+          <div class="col-span-2 flex items-center justify-center rounded bg-emerald-950/60 border border-emerald-500/30 text-amber-300 font-casino text-[11px] tracking-wider py-1.5">
+            ROULETTE
+          </div>
+          <!-- Zero (0) spanning the 3 number columns -->
+          <div class="col-span-3 bet-cell bg-emerald-700 hover:bg-emerald-600 text-white rounded font-casino border-2 border-emerald-400/70 shadow-md py-1" data-bet-type="number" data-bet-value="0">
+            <div class="num-oval bg-emerald-600 border border-emerald-300 text-white px-5 py-0.5">
+              <span class="font-casino text-base font-black">0</span>
+            </div>
+            <div class="chips-stack-wrapper"></div>
+          </div>
+
+          <!-- Col 1: Outside bets (6 boxes) -->
+          <div class="col-span-1 flex flex-col gap-1">
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/30 text-amber-100 min-h-[58px] p-1 text-center flex items-center justify-center" data-bet-type="lowhigh" data-bet-value="low">
+              <span class="leading-tight text-[11px]">1-18</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/30 text-amber-100 min-h-[58px] p-1 text-center flex items-center justify-center" data-bet-type="evenodd" data-bet-value="even">
+              <span class="leading-tight text-[11px]">EVEN</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-gradient-to-br from-red-700 via-red-800 to-rose-950 hover:brightness-125 rounded border-2 border-red-400/60 text-red-100 min-h-[58px] p-1 text-center flex flex-col items-center justify-center shadow-md" data-bet-type="color" data-bet-value="red">
+              <span class="text-sm text-red-200">♦</span>
+              <span class="font-casino text-[10px] tracking-wider leading-tight">RED</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-gradient-to-br from-neutral-800 via-neutral-900 to-black hover:brightness-125 rounded border-2 border-neutral-500/60 text-gray-200 min-h-[58px] p-1 text-center flex flex-col items-center justify-center shadow-md" data-bet-type="color" data-bet-value="black">
+              <span class="text-sm text-yellow-500">♦</span>
+              <span class="font-casino text-[10px] tracking-wider leading-tight">BLACK</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/30 text-amber-100 min-h-[58px] p-1 text-center flex items-center justify-center" data-bet-type="evenodd" data-bet-value="odd">
+              <span class="leading-tight text-[11px]">ODD</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/30 text-amber-100 min-h-[58px] p-1 text-center flex items-center justify-center" data-bet-type="lowhigh" data-bet-value="high">
+              <span class="leading-tight text-[11px]">19-36</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+          </div>
+
+          <!-- Col 2: Dozen bets (3 boxes) -->
+          <div class="col-span-1 flex flex-col gap-1">
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/40 text-yellow-300 min-h-[118px] p-1 flex flex-col items-center justify-center text-center" data-bet-type="dozen" data-bet-value="1">
+              <span class="font-casino text-xs sm:text-sm font-black leading-tight">1<sup class="text-[8px]">st</sup> 12</span>
+              <span class="text-[9px] text-yellow-200/70 font-normal mt-0.5">(1〜12)</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/40 text-yellow-300 min-h-[118px] p-1 flex flex-col items-center justify-center text-center" data-bet-type="dozen" data-bet-value="2">
+              <span class="font-casino text-xs sm:text-sm font-black leading-tight">2<sup class="text-[8px]">nd</sup> 12</span>
+              <span class="text-[9px] text-yellow-200/70 font-normal mt-0.5">(13〜24)</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+            <div class="bet-cell flex-1 bg-emerald-900/90 hover:brightness-125 rounded border border-yellow-500/40 text-yellow-300 min-h-[118px] p-1 flex flex-col items-center justify-center text-center" data-bet-type="dozen" data-bet-value="3">
+              <span class="font-casino text-xs sm:text-sm font-black leading-tight">3<sup class="text-[8px]">rd</sup> 12</span>
+              <span class="text-[9px] text-yellow-200/70 font-normal mt-0.5">(25〜36)</span>
+              <div class="chips-stack-wrapper"></div>
+            </div>
+          </div>
+
+          <!-- Cols 3-5: Numbers 1 to 36 Grid -->
+          <div id="numbers-grid" class="col-span-3 grid grid-cols-3 gap-1">
+            <!-- Dynamically populated by JS -->
+          </div>
+
+          <!-- Bottom Row: Column Bets (2 to 1) -->
+          <div class="col-span-2 opacity-0 pointer-events-none"></div>
+          <div class="col-span-1 bet-cell bg-gradient-to-b from-emerald-800 to-emerald-950 hover:brightness-125 py-2 rounded border border-yellow-500/40 text-amber-200 flex flex-col items-center justify-center leading-tight shadow-sm" data-bet-type="col" data-bet-value="1" title="左列（1, 4, 7... 34）: 配当3倍">
+            <span class="font-mono text-xs font-black">2to1</span>
+            <span class="text-[8.5px] text-amber-300/80">左列</span>
+            <div class="chips-stack-wrapper"></div>
+          </div>
+          <div class="col-span-1 bet-cell bg-gradient-to-b from-emerald-800 to-emerald-950 hover:brightness-125 py-2 rounded border border-yellow-500/40 text-amber-200 flex flex-col items-center justify-center leading-tight shadow-sm" data-bet-type="col" data-bet-value="2" title="中列（2, 5, 8... 35）: 配当3倍">
+            <span class="font-mono text-xs font-black">2to1</span>
+            <span class="text-[8.5px] text-amber-300/80">中列</span>
+            <div class="chips-stack-wrapper"></div>
+          </div>
+          <div class="col-span-1 bet-cell bg-gradient-to-b from-emerald-800 to-emerald-950 hover:brightness-125 py-2 rounded border border-yellow-500/40 text-amber-200 flex flex-col items-center justify-center leading-tight shadow-sm" data-bet-type="col" data-bet-value="3" title="右列（3, 6, 9... 36）: 配当3倍">
+            <span class="font-mono text-xs font-black">2to1</span>
+            <span class="text-[8.5px] text-amber-300/80">右列</span>
+            <div class="chips-stack-wrapper"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- MODAL: Game Mode Setup -->
+  <div id="mode-settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border-2 border-yellow-500/70 rounded-2xl max-w-md w-full p-5 shadow-2xl text-white flex flex-col">
+      <div class="flex justify-between items-center pb-2.5 border-b border-white/10">
+        <h3 class="font-casino text-lg font-bold text-yellow-400 flex items-center gap-2">
+          <span>🎯</span> ゲーム終了モード設定
+        </h3>
+        <button id="mode-modal-close-btn" class="text-gray-400 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="my-4 space-y-4 text-xs">
+        <div>
+          <label class="block text-gray-300 font-bold mb-1.5">1. 制限ルールのタイプ</label>
+          <div class="grid grid-cols-3 gap-2">
+            <button type="button" id="rule-type-spins" class="py-2 px-2 rounded-xl border border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center">
+              🎲 スピン回数制
+            </button>
+            <button type="button" id="rule-type-time" class="py-2 px-2 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center">
+              ⏱️ 制限時間制
+            </button>
+            <button type="button" id="rule-type-endless" class="py-2 px-2 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center">
+              ♾️ 無制限
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-gray-300 font-bold mb-1.5">2. プレイ時間 / ボリューム</label>
+          <div class="grid grid-cols-3 gap-2" id="preset-buttons-container">
+            <button type="button" class="preset-choice-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30" data-preset="quick">
+              <div class="font-bold text-yellow-300 text-sm">⚡ クイック</div>
+              <div class="text-[10px] text-gray-400 mt-0.5" id="desc-quick">5スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-1">目安: $100〜200</div>
+            </button>
+            <button type="button" class="preset-choice-btn p-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-center ring-1 ring-yellow-400" data-preset="standard">
+              <div class="font-bold text-yellow-300 text-sm">⚖️ スタンダード</div>
+              <div class="text-[10px] text-gray-400 mt-0.5" id="desc-standard">10スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-1">目安: $30〜70</div>
+            </button>
+            <button type="button" class="preset-choice-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30" data-preset="long">
+              <div class="font-bold text-yellow-300 text-sm">🏛️ じっくり</div>
+              <div class="text-[10px] text-gray-400 mt-0.5" id="desc-long">20スピン</div>
+              <div class="text-[9px] text-emerald-400 font-mono mt-1">目安: $10〜30</div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Strategy Advice Explanation Box -->
+        <div class="p-3 bg-black/50 rounded-xl border border-white/10 space-y-1">
+          <div class="text-yellow-400 font-bold flex items-center gap-1.5">
+            <span>💡</span> カジノ資金管理のルール
+          </div>
+          <p id="mode-advice-text" class="text-[11px] text-gray-300 leading-relaxed">
+            【スタンダード（10スピン）】は1回あたり所持金の約3〜7%（$30〜$70）を賭けるのが適正です。ダースや赤黒を絡めて着実に利益を積み上げましょう。
+          </p>
+        </div>
+      </div>
+
+      <button id="btn-apply-mode-settings" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-bold text-sm shadow-md transition">
+        この設定でゲームを開始 / 更新する
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: Add or Swap Character -->
+  <div id="add-player-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-yellow-600/50 rounded-2xl max-w-lg w-full p-5 shadow-2xl flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-center pb-3 border-b border-white/10">
+        <h3 id="modal-heading-title" class="font-casino text-lg font-bold text-yellow-400 flex items-center gap-2">
+          <span>♠</span> キャラクターを直接指名して参加
+        </h3>
+        <button id="modal-close-btn" class="text-gray-400 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="mt-3 space-y-3 text-sm flex-1 overflow-y-auto custom-scroll pr-1">
+        <!-- Target Seat Indicator -->
+        <div id="modal-target-seat-indicator" class="hidden px-3 py-1.5 rounded-xl bg-purple-900/40 border border-purple-500/40 text-xs text-purple-200 flex items-center justify-between">
+          <span>🔄 入替対象スロット:</span>
+          <span id="modal-target-seat-name" class="font-bold text-yellow-300">席1</span>
+        </div>
+
+        <!-- Role Selection -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-300 mb-1">参加タイプ</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="role-select-cpu" class="py-2 px-3 rounded-xl border border-yellow-500 bg-yellow-500/20 text-yellow-300 font-bold text-xs flex items-center justify-center gap-2">
+              🤖 CPU (AI自動ベット)
+            </button>
+            <button type="button" id="role-select-human" class="py-2 px-3 rounded-xl border border-white/20 bg-black/40 text-gray-300 font-semibold text-xs flex items-center justify-center gap-2">
+              👤 人間 (手動操作プレイヤー)
+            </button>
+          </div>
+        </div>
+
+        <!-- Faction Quick Tabs -->
+        <div id="faction-tabs-container">
+          <label class="block text-xs font-semibold text-gray-300 mb-1">派閥で絞り込み</label>
+          <div class="grid grid-cols-4 gap-1.5 text-[11px]">
+            <button type="button" class="faction-tab-btn py-1.5 px-1 rounded-lg border border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center truncate" data-faction="all">
+              すべて (16名)
+            </button>
+            <button type="button" class="faction-tab-btn py-1.5 px-1 rounded-lg border border-white/10 bg-black/40 text-emerald-400 font-bold text-center truncate" data-faction="cautious">
+              🛡️ 堅実
+            </button>
+            <button type="button" class="faction-tab-btn py-1.5 px-1 rounded-lg border border-white/10 bg-black/40 text-amber-400 font-bold text-center truncate" data-faction="highroller">
+              ⚡ 一攫千金
+            </button>
+            <button type="button" class="faction-tab-btn py-1.5 px-1 rounded-lg border border-white/10 bg-black/40 text-blue-400 font-bold text-center truncate" data-faction="balanced">
+              ⚖️ バランス
+            </button>
+          </div>
+        </div>
+
+        <!-- Direct Character Card Grid -->
+        <div>
+          <label class="block text-xs font-semibold text-gray-300 mb-1">参戦させるキャラクターを選択 (クリックで決定)</label>
+          <div id="character-selection-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto custom-scroll p-1 bg-black/40 rounded-xl border border-white/10">
+            <!-- Dynamically populated character cards -->
+          </div>
+        </div>
+
+        <!-- Selected Preview Info Box -->
+        <div id="character-preview-box" class="p-3 bg-black/60 rounded-xl border border-yellow-500/30">
+          <div class="flex items-center justify-between">
+            <span id="preview-char-name" class="font-bold text-yellow-300 text-sm">鉄壁の律</span>
+            <span id="preview-char-title" class="text-[10px] text-gray-400 bg-white/10 px-2 py-0.5 rounded">冷静沈着の統計AI</span>
+          </div>
+          <p id="preview-char-greeting" class="text-xs italic text-gray-300 mt-1.5 leading-relaxed">「オッズと分散を厳密に計算し、期待値の高い配置のみを行います。」</p>
+        </div>
+
+        <div class="pt-1">
+          <button id="btn-confirm-add-player" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-bold text-sm shadow-lg transition">
+            このキャラクターを着席させる
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Player History Details -->
+  <div id="player-history-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border border-yellow-500/60 rounded-2xl max-w-md w-full p-5 shadow-2xl text-white flex flex-col max-h-[85vh]">
+      <div class="flex justify-between items-center pb-2 border-b border-white/10">
+        <h3 id="history-modal-title" class="font-casino text-base font-bold text-yellow-400 flex items-center gap-2">
+          <span>📜</span> ベット履歴詳細
+        </h3>
+        <button id="history-modal-close-btn" class="text-gray-400 hover:text-white text-xl font-bold px-2">&times;</button>
+      </div>
+
+      <div class="my-3 flex-1 overflow-y-auto custom-scroll space-y-2.5 pr-1" id="history-modal-content">
+        <!-- Populated dynamically with player's round history -->
+      </div>
+
+      <button id="history-modal-ok-btn" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-yellow-400 font-bold text-xs border border-yellow-500/30">
+        閉じる
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: Round Summary -->
+  <div id="round-summary-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border-2 border-yellow-500/60 rounded-2xl max-w-lg w-full p-5 shadow-2xl text-white">
+      <div class="text-center pb-3 border-b border-white/10">
+        <h3 class="font-casino text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">
+          ROUND RESULTS
+        </h3>
+        <div id="summary-winning-number-badge" class="mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-black border border-white/20">
+          当選番号: <span id="summary-win-num" class="text-lg">0</span> (<span id="summary-win-color">GREEN</span>)
+        </div>
+      </div>
+
+      <div class="my-4 divide-y divide-white/10 max-h-60 overflow-y-auto custom-scroll" id="summary-players-list">
+        <!-- Dynamic Result Rows per player -->
+      </div>
+
+      <button id="btn-close-summary" class="w-full py-2.5 rounded-xl bg-yellow-500 hover:bg-yellow-400 text-slate-950 font-bold text-sm tracking-wider shadow-lg">
+        次のベットへ進む
+      </button>
+    </div>
+  </div>
+
+  <!-- MODAL: Cashout (Game End Evaluation) -->
+  <div id="cashout-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm hidden">
+    <div class="bg-slate-900 border-2 border-yellow-500/70 rounded-2xl max-w-lg w-full p-6 shadow-2xl text-white max-h-[90vh] flex flex-col">
+      <div class="text-center pb-3 border-b border-white/10 flex-shrink-0">
+        <div class="text-3xl mb-1">🏛️</div>
+        <h3 id="cashout-modal-title" class="font-casino text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500">
+          CASHOUT & SETTLEMENT
+        </h3>
+        <p id="cashout-modal-subtitle" class="text-xs text-gray-400 mt-0.5">本夜のカジノ最終ランキング結果</p>
+      </div>
+
+      <div id="cashout-content" class="my-4 space-y-3 flex-1 overflow-y-auto custom-scroll pr-1">
+        <!-- Populated dynamically with player evaluation and ranking -->
+      </div>
+
+      <div class="grid grid-cols-2 gap-2 pt-2 border-t border-white/10 flex-shrink-0">
+        <button id="btn-cashout-continue" class="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-gray-300 font-bold text-xs">
+          まだ遊ぶ (続行)
+        </button>
+        <button id="btn-cashout-restart" class="py-2 px-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-bold text-xs shadow-md">
+          再挑戦 (初期化)
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-20 opacity-0 transition-all duration-300 bg-slate-900/90 text-white px-5 py-3 rounded-xl border border-yellow-500/40 shadow-2xl flex items-center gap-3 backdrop-blur-md pointer-events-none">
+    <div id="toast-icon" class="text-xl">💰</div>
+    <div>
+      <h4 id="toast-title" class="text-sm font-bold text-yellow-400">通知</h4>
+      <p id="toast-message" class="text-xs text-gray-300">内容</p>
+    </div>
+  </div>
+
+  <div id="bet-tooltip" class="p-2.5 text-xs text-slate-100 flex flex-col gap-1">
+    <div class="flex items-center justify-between gap-3 border-b border-yellow-500/30 pb-1">
+      <span id="tooltip-title" class="font-bold text-yellow-300 text-[12px] flex items-center gap-1"></span>
+      <span id="tooltip-payout" class="font-mono font-black text-emerald-400 bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.2 rounded text-[10.5px]"></span>
+    </div>
+    <div id="tooltip-desc" class="text-[11px] text-gray-200 leading-snug"></div>
+    <div class="flex items-center justify-between text-[10px] text-gray-400 pt-0.5 mt-0.5 border-t border-white/10">
+      <span>当選確率: <span id="tooltip-odds" class="text-amber-300 font-bold"></span></span>
+      <span id="tooltip-target-count" class="text-gray-400"></span>
+    </div>
+    <div id="tooltip-targets" class="text-[9.5px] text-gray-300 bg-black/40 rounded p-1 font-mono tracking-tight break-words max-h-12 overflow-hidden text-ellipsis"></div>
+  </div>
+
+  <script>
+    /* European Roulette Wheel Numbers Order (Clockwise) - 37 numbers */
+    const WHEEL_NUMBERS = [
+      0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26
+    ];
+
+    const RED_NUMBERS = new Set([
+      1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36
+    ]);
+
+    function getNumberColor(num) {
+      if (num === 0) return 'green';
+      return RED_NUMBERS.has(num) ? 'red' : 'black';
+    }
+
+    /* Helper: Human-friendly bet location labels */
+    function formatBetLabel(betKey) {
+      const [type, val] = betKey.split('_');
+      if (type === 'number') {
+        const num = parseInt(val, 10);
+        return { label: `数字 ${num}`, tag: `#${num}`, color: getNumberColor(num) };
+      }
+      if (type === 'color') {
+        return { label: val === 'red' ? '赤(RED)' : '黒(BLK)', tag: val === 'red' ? '🔴 RED' : '⚫ BLK', color: val };
+      }
+      if (type === 'evenodd') {
+        return { label: val === 'even' ? '偶数(EVEN)' : '奇数(ODD)', tag: val === 'even' ? 'EVEN' : 'ODD', color: 'blue' };
+      }
+      if (type === 'lowhigh') {
+        return { label: val === 'low' ? 'Low(1-18)' : 'High(19-36)', tag: val === 'low' ? '1-18' : '19-36', color: 'purple' };
+      }
+      if (type === 'dozen') {
+        return { label: `${val}st12(ダース)`, tag: `${val}st 12`, color: 'amber' };
+      }
+      if (type === 'col') {
+        return { label: `列${val}(2:1)`, tag: `列${val}`, color: 'emerald' };
+      }
+      return { label: `${type}:${val}`, tag: `${type}:${val}`, color: 'gray' };
+    }
+
+    function getBetExplanationData(type, value) {
+      if (type === 'number') {
+        const num = parseInt(value, 10);
+        const col = getNumberColor(num);
+        const colLabel = col === 'green' ? '緑 (ゼロ)' : (col === 'red' ? '赤色' : '黒色');
+        return {
+          title: `ストレートアップ #${num}`,
+          payout: '配当: 36倍 (35:1)',
+          desc: `数字【${num}】ピンポイントの一点賭け。当たれば賭け金が36倍になります。`,
+          odds: '2.70%',
+          targetCount: '対象: 1個',
+          targets: `[ ${num} (${colLabel}) ]`,
+          numbers: [num]
+        };
+      }
+      if (type === 'color') {
+        const isRed = value === 'red';
+        const nums = isRed ? Array.from(RED_NUMBERS).sort((a,b) => a-b) : [];
+        if (!isRed) {
+          for (let n = 1; n <= 36; n++) {
+            if (!RED_NUMBERS.has(n)) nums.push(n);
+          }
+        }
+        return {
+          title: isRed ? '♦ カラーベット (RED / 赤)' : '♦ カラーベット (BLACK / 黒)',
+          payout: '配当: 2倍 (1:1)',
+          desc: isRed ? '赤色のポケット18箇所すべてに賭けます。' : '黒色のポケット18箇所すべてに賭けます。',
+          odds: '48.65%',
+          targetCount: '対象: 18個',
+          targets: nums.join(', '),
+          numbers: nums
+        };
+      }
+      if (type === 'evenodd') {
+        const isEven = value === 'even';
+        const nums = [];
+        for (let n = 1; n <= 36; n++) {
+          if (isEven && n % 2 === 0) nums.push(n);
+          if (!isEven && n % 2 !== 0) nums.push(n);
+        }
+        return {
+          title: isEven ? '偶数ベット (EVEN)' : '奇数ベット (ODD)',
+          payout: '配当: 2倍 (1:1)',
+          desc: isEven ? '偶数（2, 4, 6... 36）すべてに賭けます（0は除く）。' : '奇数（1, 3, 5... 35）すべてに賭けます（0は除く）。',
+          odds: '48.65%',
+          targetCount: '対象: 18個',
+          targets: nums.join(', '),
+          numbers: nums
+        };
+      }
+      if (type === 'lowhigh') {
+        const isLow = value === 'low';
+        const nums = [];
+        const start = isLow ? 1 : 19;
+        const end = isLow ? 18 : 36;
+        for (let n = start; n <= end; n++) nums.push(n);
+        return {
+          title: isLow ? 'ロウベット (1 - 18)' : 'ハイベット (19 - 36)',
+          payout: '配当: 2倍 (1:1)',
+          desc: isLow ? '前半の数字【1〜18】すべてに賭けます。' : '後半の数字【19〜36】すべてに賭けます。',
+          odds: '48.65%',
+          targetCount: '対象: 18個',
+          targets: nums.join(', '),
+          numbers: nums
+        };
+      }
+      if (type === 'dozen') {
+        const dVal = parseInt(value, 10);
+        const start = (dVal - 1) * 12 + 1;
+        const end = dVal * 12;
+        const nums = [];
+        for (let n = start; n <= end; n++) nums.push(n);
+        const labels = { 1: '1st 12 (1〜12)', 2: '2nd 12 (13〜24)', 3: '3rd 12 (25〜36)' };
+        return {
+          title: `ダースベット (${labels[dVal]})`,
+          payout: '配当: 3倍 (2:1)',
+          desc: `テーブルを12分割したブロック【${start}〜${end}】の全数字に賭けます。`,
+          odds: '32.43%',
+          targetCount: '対象: 12個',
+          targets: nums.join(', '),
+          numbers: nums
+        };
+      }
+      if (type === 'col') {
+        const cVal = parseInt(value, 10);
+        const colNames = { 1: '左列 (1, 4, 7... 34)', 2: '中列 (2, 5, 8... 35)', 3: '右列 (3, 6, 9... 36)' };
+        const nums = [];
+        for (let n = 1; n <= 36; n++) {
+          if (cVal === 1 && n % 3 === 1) nums.push(n);
+          else if (cVal === 2 && n % 3 === 2) nums.push(n);
+          else if (cVal === 3 && n % 3 === 0) nums.push(n);
+        }
+        return {
+          title: `カラムベット (${colNames[cVal]})`,
+          payout: '配当: 3倍 (2:1)',
+          desc: `縦方向の1列（12個の数字）を丸ごとカバーして賭けます。`,
+          odds: '32.43%',
+          targetCount: '対象: 12個',
+          targets: nums.join(', '),
+          numbers: nums
+        };
+      }
+      return null;
+    }
+
+    function attachCellHoverTooltip(cell) {
+      const tooltip = document.getElementById('bet-tooltip');
+      if (!tooltip) return;
+
+      cell.addEventListener('mouseenter', (e) => {
+        const type = cell.dataset.betType;
+        const value = cell.dataset.betValue;
+        if (!type || !value) return;
+
+        const data = getBetExplanationData(type, value);
+        if (!data) return;
+
+        document.getElementById('tooltip-title').textContent = data.title;
+        document.getElementById('tooltip-payout').textContent = data.payout;
+        document.getElementById('tooltip-desc').textContent = data.desc;
+        document.getElementById('tooltip-odds').textContent = data.odds;
+        document.getElementById('tooltip-target-count').textContent = data.targetCount;
+        document.getElementById('tooltip-targets').textContent = data.targets;
+
+        // Highlight targeted number cells on felt table
+        document.querySelectorAll('.bet-cell[data-bet-type="number"]').forEach(nCell => {
+          const num = parseInt(nCell.dataset.betValue, 10);
+          if (data.numbers && data.numbers.includes(num)) {
+            nCell.classList.add('bet-target-highlight');
+          }
+        });
+
+        tooltip.classList.add('show');
+        positionTooltip(e);
+      });
+
+      cell.addEventListener('mousemove', (e) => {
+        positionTooltip(e);
+      });
+
+      cell.addEventListener('mouseleave', () => {
+        tooltip.classList.remove('show');
+        document.querySelectorAll('.bet-cell.bet-target-highlight').forEach(c => {
+          c.classList.remove('bet-target-highlight');
+        });
+      });
+    }
+
+    function positionTooltip(e) {
+      const tooltip = document.getElementById('bet-tooltip');
+      if (!tooltip) return;
+
+      const offset = 14;
+      let left = e.clientX + offset;
+      let top = e.clientY + offset;
+
+      const tipRect = tooltip.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (left + tipRect.width > viewportWidth - 10) {
+        left = e.clientX - tipRect.width - offset;
+      }
+      if (top + tipRect.height > viewportHeight - 10) {
+        top = e.clientY - tipRect.height - offset;
+      }
+
+      tooltip.style.left = `${Math.max(10, left)}px`;
+      tooltip.style.top = `${Math.max(10, top)}px`;
+    }
+
+    /* Player Colors */
+    const PLAYER_COLORS = [
+      { id: 'p1', bg: '#eab308', text: '#000', border: '#fef08a', name: 'イエロー' },
+      { id: 'p2', bg: '#3b82f6', text: '#fff', border: '#93c5fd', name: 'ブルー' },
+      { id: 'p3', bg: '#ec4899', text: '#fff', border: '#fbcfe8', name: 'ピンク' },
+      { id: 'p4', bg: '#10b981', text: '#fff', border: '#a7f3d0', name: 'グリーン' }
+    ];
+
+    const PERSONALITY_INFO = {
+      cautious: { label: '堅実派', icon: '🛡️', color: 'text-emerald-400' },
+      highroller: { label: '一攫千金', icon: '⚡', color: 'text-amber-400' },
+      balanced: { label: 'バランス派', icon: '⚖️', color: 'text-blue-400' },
+      wildcard: { label: '気まぐれ', icon: '🎲', color: 'text-purple-400' }
+    };
+
+    const UNIQUE_CHARACTERS = {
+      cautious: [
+        {
+          id: 'c1',
+          faction: 'cautious',
+          name: '鉄壁の律 (りつ)',
+          title: '冷静沈着の統計AI',
+          greeting: 'オッズと分散を厳密に計算し、期待値の高い配置のみを行います。',
+          speechBet: (val) => `${val}にベット。統計的確率は48.65%です。`,
+          speechWin: '計算通りの利確です。着実に複利を回しましょう。',
+          speechLose: '想定の範囲内のドローダウンです。焦りは不要。',
+          speechEcstatic: '理論値を超える素晴らしい利回りです！計画を前倒しします。',
+          speechPanicked: '計算外の偏りが発生…！資金管理のパラメータを見直さねば…',
+          speechBankrupt: '確率の極限収束による全損…シャットダウンします。'
+        },
+        {
+          id: 'c2',
+          faction: 'cautious',
+          name: '慎重の聡太 (そうた)',
+          title: '読み深き将棋指し風',
+          greeting: '一手一手、盤面を読み解くように手堅く指させていただきます。',
+          speechBet: (val) => `ここは${val}と受ける一手。手堅く陣形を整えます。`,
+          speechWin: '良き差し手でした。王手をかけるまで油断は禁物です。',
+          speechLose: 'ふむ…読みを外されましたか。しかし焦れて突っ込んでは負け。',
+          speechEcstatic: '完全に読み筋通り！詰みへの道筋がクッキリ見えました！',
+          speechPanicked: 'これは痛烈な反撃…！持ち駒が底をつきそうです…！',
+          speechBankrupt: '参りました…投了です。出直してまいります。'
+        },
+        {
+          id: 'c3',
+          faction: 'cautious',
+          name: '会計士の澪 (みお)',
+          title: '数字を愛する堅実女子',
+          greeting: 'カジノでも帳簿は綺麗に。無駄な支出は一切許しませんからね。',
+          speechBet: (val) => `予算会議の結果、今回は${val}への配分を承認します。`,
+          speechWin: '黒字計上です！今期の営業利益は極めて健全ですね♪',
+          speechLose: '経費計上の枠内で収まりました。想定経費です。',
+          speechEcstatic: '過去最高益を更新です！今夜は特上のお寿司で決算祝いですね！',
+          speechPanicked: '赤字が資本金を脅かしています！緊急緊縮財政を発令します！',
+          speechBankrupt: '債務超過…完全な倒産です…トホホ…'
+        },
+        {
+          id: 'c4',
+          faction: 'cautious',
+          name: '司書の栞 (しおり)',
+          title: '静けさを好む図書館員',
+          greeting: '静かに…歴史の教訓に従えば、急がば回れが一番安全です。',
+          speechBet: (val) => `${val}の棚に、そっとチップを挟んでおきますね。`,
+          speechWin: '静かに微笑み。知識を蓄えた者が最後に微笑むのです。',
+          speechLose: 'ページをめくれば、また新しい機会がありますから。',
+          speechEcstatic: '思わず声が出てしまいました…！歴史的名著のような大勝利です！',
+          speechPanicked: '本棚が崩れるような大惨事…！息が苦しいです…',
+          speechBankrupt: '本の栞もなくなってしまいました…静かに退室しますね。'
+        }
+      ],
+      highroller: [
+        {
+          id: 'h1',
+          faction: 'highroller',
+          name: '豪運の陽翔 (はると)',
+          title: '36倍狙いのカリスマ勝負師',
+          greeting: 'ちまちま小銭拾いに来たんじゃねぇ！男なら36倍一撃必殺よ！',
+          speechBet: (val) => `オラァ！本命【${val}】に魂込めて全弾発射だ！`,
+          speechWin: 'ガハハ！見たか俺の勝負勘！これが36倍の破壊力じゃあ！',
+          speechLose: 'チッ、かすりもしねぇか！だが次の一発で全部捲るぜ！',
+          speechEcstatic: '大金星だぁぁ！！今夜の高級タワマンは俺の奢りだァ！',
+          speechPanicked: 'クソが…！だが俺の辞書に「撤退」の文字はねぇ！全ツッパだ！',
+          speechBankrupt: '綺麗さっぱり消し飛んだぜ…！だが悔いはねぇ、最高だった！'
+        },
+        {
+          id: 'h2',
+          faction: 'highroller',
+          name: '暴竜の龍翔 (りゅうと)',
+          title: '唸る豪腕のバーサーカー',
+          greeting: '小細工なんざ叩き潰す！ホイールをへし折る気迫で賭けてやるぜ！',
+          speechBet: (val) => `唸れ我が直感！【${val}】にドカンとぶち込むぜ！`,
+          speechWin: 'シャオラァ！獲ったぞオイ！金が唸りを上げて転がり込んできたぜ！',
+          speechLose: '掠り傷だ！ホイールの野郎、俺にビビってんじゃねぇぞ！',
+          speechEcstatic: '天下無双！俺の前に敵はねぇ！カジノごと買い取ってやる！',
+          speechPanicked: 'オイオイ冗談だろ！？残高の減り方がジェットコースターだぞ！？',
+          speechBankrupt: 'チキショウ…力尽きたぜ…次こそはこのテーブルを呑み込んでやる！'
+        },
+        {
+          id: 'h3',
+          faction: 'highroller',
+          name: '夜帝の琥珀 (こはく)',
+          title: '不敵に笑うゴールドハイローラー',
+          greeting: 'リスクとリターン、スリルこそが最高の美酒。大勝負といこうか。',
+          speechBet: (val) => `美しい数字だ…【${val}】に今宵の夢をベットしよう。`,
+          speechWin: 'フッ…美酒の味がさらに深まったね。当然の結果だよ。',
+          speechLose: 'テーブルへのチップ代さ。夜はまだ始まったばかりだよ。',
+          speechEcstatic: '素晴らしい…！ゴールドの雨が降っているようだ。極上の夜だよ。',
+          speechPanicked: 'おや…？少々ヒリつきが度を越してきたようだね…',
+          speechBankrupt: 'すべて溶けたか…だが、最高の夢を見させてもらったよ。'
+        },
+        {
+          id: 'h4',
+          faction: 'highroller',
+          name: '烈火の咲良 (さくら)',
+          title: '命知らずのギャンブラー乙女',
+          greeting: '女だからって舐めないでよね！勝つときはド派手に頂くわ！',
+          speechBet: (val) => `あたしの勝負勘が叫んでる！【${val}】、アンタに賭けた！`,
+          speechWin: 'よっしゃあ大当たり！私の勘に間違いはなかったわ！',
+          speechLose: 'くぅ〜惜しい！でも次のスピンで倍返しにしてあげる！',
+          speechEcstatic: 'やったやったぁぁ！札束のベッドで眠れるわ！最高っ！',
+          speechPanicked: 'ちょ、ちょっと待ちなさいよ！残高の減りが早すぎない！？',
+          speechBankrupt: 'すっからかん…あちゃー、やっちゃった…！'
+        }
+      ],
+      balanced: [
+        {
+          id: 'b1',
+          faction: 'balanced',
+          name: '策士の湊 (みなと)',
+          title: 'マルチ戦術の頭脳派',
+          greeting: '分散投資こそカジノを制する唯一の道。ダースと本命を巧みに絡めます。',
+          speechBet: (val) => `ポートフォリオ構築完了。【${val}】でヘッジをかけました。`,
+          speechWin: '狙い通りの配当金です。リスクヘッジが綺麗に機能しましたね。',
+          speechLose: '片方が外れましたが、想定内の軽微な損失に抑えられました。',
+          speechEcstatic: '両取り成功！最高のシナジーが生み出せました、完璧です！',
+          speechPanicked: '想定防波堤が突破された…一旦戦略を組み直さねば…',
+          speechBankrupt: '分散の網目をすり抜けられたか…完敗です。'
+        },
+        {
+          id: 'b2',
+          faction: 'balanced',
+          name: '陽光の朝陽 (あさひ)',
+          title: 'ポジティブな分散派',
+          greeting: '明るく楽しく、でもリスクはきっちり半分こ！今日もいい波乗ろう！',
+          speechBet: (val) => `${val}に置いてみたよ！どちらに転んでもワクワクだね！`,
+          speechWin: '当たったよ〜！コツコツ積み上げるのが一番楽しいよね！',
+          speechLose: 'ドンマイ！次の一投で取り戻せば問題なし！笑顔笑顔！',
+          speechEcstatic: 'わあぁぁ！波が来てるよ！みんなでハイタッチしよう！',
+          speechPanicked: 'あれれ…？ちょっとお財布が寂しくなってきたかも…踏ん張りどころ！',
+          speechBankrupt: 'ありゃりゃ〜！底をついちゃった！でも楽しかったよ、ありがとう！'
+        },
+        {
+          id: 'b3',
+          faction: 'balanced',
+          name: '司令塔の陸 (りく)',
+          title: '冷静な現場監督',
+          greeting: '全体を見渡し、偏りを突く。現場百回、冷静にベットを配分するぞ。',
+          speechBet: (val) => `配置完了、${val}を軸に据えた。抜かりはない。`,
+          speechWin: 'よし、現場の判断は正しかったな。次も規律を守って進める。',
+          speechLose: '想定の範囲だ。右往左往せず、次のスピンに集中する。',
+          speechEcstatic: '見事な成果だ！全員の安全マージンを確保できたぞ！',
+          speechPanicked: '持ち場が崩れてきた…！総員、守りを固めろ…！',
+          speechBankrupt: '防衛ライン完全崩壊…すまない、撤退する。'
+        },
+        {
+          id: 'b4',
+          faction: 'balanced',
+          name: 'アナリスト芽依 (めい)',
+          title: 'データ派の戦略お姉さん',
+          greeting: '直近の出目データを解析済みよ。勝率の良いバランスでいくわね。',
+          speechBet: (val) => `解析結果に基づき、${val}へ最適配分したわ。`,
+          speechWin: 'データ通りのリターンね！手堅い戦略の勝利よ♪',
+          speechLose: '統計の揺らぎね。長期で見ればプラスに回帰するはずよ。',
+          speechEcstatic: 'モデルケース以上の大成功よ！祝杯をあげなきゃね！',
+          speechPanicked: 'イレギュラー値が連続してる…モデルが狂っちゃうわ…！',
+          speechBankrupt: 'ロスカットが間に合わなかった…分析し直してくるわ。'
+        }
+      ],
+      wildcard: [
+        {
+          id: 'w1',
+          faction: 'wildcard',
+          name: '風狂の朔 (さく)',
+          title: '直感で踊るトリックスター',
+          greeting: '考えるな、感じろ…！ホイールの精霊が気まぐれに囁いているよ〜。',
+          speechBet: (val) => `今、風がそよいだマス…【${val}】にチップが吸い寄せられたよ！`,
+          speechWin: 'ほらね！直感は絶対に嘘をつかないんだ！ふふっ♪',
+          speechLose: 'あれれ〜？風向きが変わったかな？まあ気にしてないよ〜。',
+          speechEcstatic: 'ゾーンに入ったよ！！運命の女神様とステップを踏んでる気分！',
+          speechPanicked: 'あわわわ！精霊さんどこ行ったの〜！？迷子になっちゃった！',
+          speechBankrupt: '風になって飛んでっちゃった〜！バイバイまたね〜！'
+        },
+        {
+          id: 'w2',
+          faction: 'wildcard',
+          name: '幻彩の碧 (あお)',
+          title: '直感全振りのアーティスト',
+          greeting: 'この緑のフェルトはキャンバス。直感の色彩でチップを彩るよ。',
+          speechBet: (val) => `この【${val}】の数字が、いま一番美しく輝いて見えたんだ。`,
+          speechWin: '素晴らしいアートの完成だ！インスピレーションの勝利！',
+          speechLose: '色彩が濁ったかな？でも失敗作もアートの一部さ。',
+          speechEcstatic: '奇跡の傑作が生まれたよ！世界が黄金色に輝いてる！',
+          speechPanicked: '絵の具が…チップが全部こぼれ落ちていく…！どうしよう！',
+          speechBankrupt: 'キャンバスが真っ白になっちゃった…筆を置くよ。'
+        },
+        {
+          id: 'w3',
+          faction: 'wildcard',
+          name: '気儘の凪 (なぎ)',
+          title: 'マイペースな自由猫',
+          greeting: 'にゃー。勝ち負けなんてどうでもいいけど、光るチップは好き。',
+          speechBet: (val) => `肉球がここ【${val}】をペタッと触ったから置いたにゃ。`,
+          speechWin: '当たったにゃ！美味しいカリカリ缶詰がいっぱい買えるにゃ〜♪',
+          speechLose: 'ハズレた？あくび〜。お昼寝の時間かにゃ〜。',
+          speechEcstatic: '大漁節だにゃー！マタタビの海でゴロゴロしちゃうにゃ！',
+          speechPanicked: 'しっぽが逆立ってきたにゃ…！ピンチの予感だにゃ！',
+          speechBankrupt: '箱がからっぽになっちゃったにゃ…丸くなって寝るにゃ…'
+        },
+        {
+          id: 'w4',
+          faction: 'wildcard',
+          name: '星詠の柚 (ゆず)',
+          title: 'タロットと星占いの少女',
+          greeting: '星々の巡りが今日のあなたとの出会いを告げていました。占ってみましょう。',
+          speechBet: (val) => `星の導きは【${val}】。運命のタロットを配置します。`,
+          speechWin: '星の予言通りです！幸運の星があなたの頭上に輝いていますよ。',
+          speechLose: '逆位置のカードが出ましたね…厄落としができました。',
+          speechEcstatic: '運命の輪が大回転しています！奇跡の星回りです！',
+          speechPanicked: '不吉な彗星が横切りました…星の導きが乱れています…！',
+          speechBankrupt: '運命の砂時計が落ちきりました…星の力を休めます。'
+        }
+      ],
+      human: [
+        {
+          id: 'hu1',
+          faction: 'human',
+          name: 'あなた (蓮)',
+          title: '勝負に挑むチャレンジャー',
+          greeting: 'よろしくお願いします！自分の勘を信じて勝負します！',
+          speechBet: (val) => `よし、ここに賭けるぞ！当たってくれ！`,
+          speechWin: 'よっしゃあ！狙い通りだ！いい波来てる！',
+          speechLose: 'くっ…次は当てるぞ！',
+          speechEcstatic: 'ウハウハが止まらない！！最高だー！',
+          speechPanicked: 'やばい…手持ちが底をつきそう…！',
+          speechBankrupt: '破産してしまった…一文無しだ…'
+        },
+        {
+          id: 'hu2',
+          faction: 'human',
+          name: '相棒の葵 (あおい)',
+          title: '直感重視のプレイヤー',
+          greeting: '一緒に勝ちにいきましょう！カジノの空気を楽しもう！',
+          speechBet: (val) => `ここだ！${val}に託してみる！`,
+          speechWin: 'やった！見事に的中！',
+          speechLose: '惜しかったな…切り替えていこう！',
+          speechEcstatic: '大勝利だー！勢いが止まらない！',
+          speechPanicked: 'ちょっとまずいかも…慎重にいこう！',
+          speechBankrupt: 'すっからかんだ…トホホ…'
+        }
+      ]
+    };
+
+    const ALL_CPU_CHARACTERS = [
+      ...UNIQUE_CHARACTERS.cautious,
+      ...UNIQUE_CHARACTERS.highroller,
+      ...UNIQUE_CHARACTERS.balanced,
+      ...UNIQUE_CHARACTERS.wildcard
+    ];
+
+    function getAvatarSvg(player) {
+      const mood = player.mood || 'neutral';
+      const isBankrupt = player.balance <= 0 || mood === 'bankrupt';
+      const isCpu = player.isCpu;
+      const personality = player.personality || 'cautious';
+
+      let headColor = '#fcd34d';
+      let accentColor = '#eab308';
+      let earLeft = '', earRight = '', accessory = '';
+
+      if (isCpu) {
+        if (personality === 'cautious') {
+          headColor = '#6ee7b7'; accentColor = '#059669';
+        } else if (personality === 'highroller') {
+          headColor = '#f59e0b'; accentColor = '#b45309';
+          accessory = `<path d="M12 8 L18 2 L24 8 L30 2 L36 8 L33 13 L15 13 Z" fill="#fbbf24" stroke="#78350f" stroke-width="1"/>`;
+        } else if (personality === 'balanced') {
+          headColor = '#60a5fa'; accentColor = '#2563eb';
+          accessory = `<rect x="22" y="2" width="4" height="6" rx="2" fill="#93c5fd" /><circle cx="24" cy="2" r="2.5" fill="#ef4444" />`;
+        } else {
+          headColor = '#c084fc'; accentColor = '#7e22ce';
+          earLeft = `<polygon points="8,14 12,4 16,14" fill="#a855f7" />`;
+          earRight = `<polygon points="32,14 36,4 40,14" fill="#a855f7" />`;
+        }
+      } else {
+        headColor = '#fed7aa'; accentColor = '#ea580c';
+      }
+
+      let eyesHtml = '';
+      let mouthHtml = '';
+      let sweatOrStars = '';
+      let avatarClass = '';
+
+      if (isBankrupt) {
+        avatarClass = 'avatar-bankrupt';
+        eyesHtml = `
+          <path d="M14 19 L20 25 M20 19 L14 25" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+          <path d="M28 19 L34 25 M34 19 L28 25" stroke="#ef4444" stroke-width="2.5" stroke-linecap="round"/>
+        `;
+        mouthHtml = `<path d="M18 33 Q24 28 30 33" stroke="#475569" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+        sweatOrStars = `
+          <circle cx="24" cy="24" r="20" fill="rgba(0,0,0,0.4)"/>
+          <text x="24" y="28" font-size="10" font-weight="900" fill="#f87171" text-anchor="middle" font-family="sans-serif">K.O.</text>
+        `;
+      } else if (mood === 'ecstatic') {
+        avatarClass = 'avatar-ecstatic';
+        eyesHtml = `
+          <text x="17" y="24" font-size="10" font-weight="900" fill="#15803d" text-anchor="middle">$$</text>
+          <text x="31" y="24" font-size="10" font-weight="900" fill="#15803d" text-anchor="middle">$$</text>
+        `;
+        mouthHtml = `
+          <path d="M16 28 Q24 39 32 28 Z" fill="#b91c1c" stroke="#1c1917" stroke-width="1.2"/>
+          <path d="M19 32 Q24 37 29 32" fill="#f87171"/>
+        `;
+        sweatOrStars = `
+          <text x="8" y="12" font-size="9" fill="#facc15">✨</text>
+          <text x="34" y="12" font-size="9" fill="#facc15">💰</text>
+        `;
+      } else if (mood === 'happy') {
+        eyesHtml = `
+          <path d="M14 23 Q17 17 20 23" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round"/>
+          <path d="M28 23 Q31 17 34 23" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round"/>
+        `;
+        mouthHtml = `<path d="M18 28 Q24 35 30 28" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+      } else if (mood === 'worried') {
+        eyesHtml = `
+          <circle cx="17" cy="21" r="3" fill="#0f172a"/>
+          <circle cx="31" cy="21" r="3" fill="#0f172a"/>
+          <path d="M13 16 L19 18" stroke="#0f172a" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M35 16 L29 18" stroke="#0f172a" stroke-width="1.5" stroke-linecap="round"/>
+        `;
+        mouthHtml = `<path d="M18 31 Q24 27 30 31" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+        sweatOrStars = `<path d="M36 18 Q38 23 35 24 Q33 23 34 20 Z" fill="#38bdf8"/>`;
+      } else if (mood === 'panicked') {
+        avatarClass = 'avatar-panicked';
+        eyesHtml = `
+          <circle cx="17" cy="21" r="4.5" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+          <circle cx="17" cy="21" r="1.5" fill="#0f172a"/>
+          <circle cx="31" cy="21" r="4.5" fill="#ffffff" stroke="#0f172a" stroke-width="1.5"/>
+          <circle cx="31" cy="21" r="1.5" fill="#0f172a"/>
+        `;
+        mouthHtml = `<path d="M17 31 Q20 28 24 32 Q28 28 31 31" stroke="#0f172a" stroke-width="2" fill="none" stroke-linecap="round"/>`;
+        sweatOrStars = `
+          <path d="M37 17 Q40 22 36 24 Q33 22 35 19 Z" fill="#38bdf8"/>
+          <path d="M9 19 Q12 24 8 26 Q5 24 7 21 Z" fill="#38bdf8"/>
+        `;
+      } else {
+        eyesHtml = `
+          <circle cx="17" cy="21" r="2.5" fill="#0f172a"/>
+          <circle cx="31" cy="21" r="2.5" fill="#0f172a"/>
+        `;
+        mouthHtml = `<line x1="19" y1="30" x2="29" y2="30" stroke="#0f172a" stroke-width="2" stroke-linecap="round"/>`;
+      }
+
+      return `
+        <div class="relative w-11 h-11 flex-shrink-0 ${avatarClass}">
+          <svg viewBox="0 0 48 48" class="w-full h-full drop-shadow-md">
+            ${accessory}
+            ${earLeft}
+            ${earRight}
+            <circle cx="24" cy="24" r="18" fill="${headColor}" stroke="${accentColor}" stroke-width="2.5"/>
+            ${eyesHtml}
+            ${mouthHtml}
+            ${sweatOrStars}
+          </svg>
+        </div>
+      `;
+    }
+
+    let players = [
+      {
+        id: 1,
+        name: 'あなた (蓮)',
+        title: '勝負に挑むチャレンジャー',
+        isCpu: false,
+        personality: null,
+        profileRef: UNIQUE_CHARACTERS.human[0],
+        colorIndex: 0,
+        balance: 1000,
+        initialBalance: 1000,
+        mood: 'neutral',
+        speech: 'さあ勝負だ！ルーレット回すぞ！',
+        bets: new Map(),
+        roundHistory: []
+      }
+    ];
+
+    let activePlayerId = 1;
+    let selectedChipValue = 1;
+    let isAllInSelected = false;
+    let isSpinning = false;
+    let historyList = [];
+
+    // Modal swap state
+    let targetSwapPlayerId = null;
+
+    // Spectator Auto-play settings
+    let isSpectatorAutoPlay = false;
+    let spectatorTimer = null;
+    let spectatorSpeedDelays = {
+      slow: 6000,
+      normal: 3500,
+      fast: 2000
+    };
+
+    // Game Mode & Limitation States
+    let gameRuleType = 'spins'; // 'spins' | 'time' | 'endless'
+    let gamePreset = 'standard'; // 'quick' | 'standard' | 'long'
+    let remainingSpins = 10;
+    let remainingSeconds = 420; // 7 minutes
+    let gameTimerInterval = null;
+
+    const PRESET_CONFIGS = {
+      quick: {
+        spins: 5,
+        seconds: 180, // 3 min
+        recommendedRange: [100, 200],
+        label: 'クイック',
+        advice: '【クイック（5スピン/3分）】短期決戦です！1回あたり$100〜$200（資金の10〜20%）の大胆なベットで一気に勝負をつけましょう。'
+      },
+      standard: {
+        spins: 10,
+        seconds: 420, // 7 min
+        recommendedRange: [30, 70],
+        label: 'スタンダード',
+        advice: '【スタンダード（10スピン/7分）】王道バランスです！1回あたり$30〜$70（資金の3〜7%）を賭け、ダースや赤黒を絡めて安定した利確を目指します。'
+      },
+      long: {
+        spins: 20,
+        seconds: 900, // 15 min
+        recommendedRange: [10, 30],
+        label: 'じっくり',
+        advice: '【じっくり（20スピン/15分）】本格長期戦です！1回あたり$10〜$30（資金の1〜3%）で低リスクに抑え、統計の偏りを読みながら資産を増やしましょう。'
+      }
+    };
+
+    let audioInitialized = false;
+    let chipSynth, wheelClickSynth, winSynth;
+    let lastClickAudioTime = 0;
+
+    function initAudio() {
+      if (audioInitialized) return;
+      try {
+        Tone.start();
+        chipSynth = new Tone.MembraneSynth({
+          pitchDecay: 0.05,
+          octaves: 3,
+          oscillator: { type: "sine" },
+          envelope: { attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.05 }
+        }).toDestination();
+        chipSynth.volume.value = -12;
+
+        wheelClickSynth = new Tone.MembraneSynth({
+          pitchDecay: 0.01,
+          octaves: 2,
+          oscillator: { type: "triangle" },
+          envelope: { attack: 0.001, decay: 0.02, sustain: 0, release: 0.01 }
+        }).toDestination();
+        wheelClickSynth.volume.value = -16;
+
+        winSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+        winSynth.volume.value = -10;
+
+        audioInitialized = true;
+      } catch (e) {
+        console.warn("Audio note:", e);
+      }
+    }
+
+    function playChipSound() {
+      if (!audioInitialized) initAudio();
+      try {
+        if (chipSynth) chipSynth.triggerAttackRelease("C4", "16n", Tone.now());
+      } catch (e) {}
+    }
+
+    function playClickSound() {
+      if (!audioInitialized) initAudio();
+      try {
+        const now = Tone.now();
+        if (now - lastClickAudioTime < 0.065) return;
+        lastClickAudioTime = now;
+        if (wheelClickSynth) {
+          wheelClickSynth.triggerAttackRelease("A6", "64n", now);
+        }
+      } catch (e) {}
+    }
+
+    function playWinSound() {
+      if (!audioInitialized) initAudio();
+      try {
+        if (winSynth) {
+          const now = Tone.now();
+          winSynth.triggerAttackRelease(["C5", "E5", "G5"], "8n", now);
+          winSynth.triggerAttackRelease(["E5", "G5", "C6"], "4n", now + 0.18);
+        }
+      } catch (e) {}
+    }
+
+    function getPlayerTotalBet(player) {
+      let sum = 0;
+      player.bets.forEach(v => sum += v);
+      return sum;
+    }
+
+    function renderPlayersList() {
+      const container = document.getElementById('players-list-container');
+      container.innerHTML = '';
+
+      document.getElementById('player-count-badge').textContent = `${players.length}/4`;
+      const btnAdd = document.getElementById('btn-open-add-player');
+      btnAdd.disabled = players.length >= 4 || isSpinning;
+
+      players.forEach(player => {
+        const pColor = PLAYER_COLORS[player.colorIndex];
+        const isSelected = player.id === activePlayerId && !player.isCpu;
+        const totalBet = getPlayerTotalBet(player);
+        const isBankrupt = player.balance <= 0 && totalBet === 0;
+
+        const card = document.createElement('div');
+        card.className = `relative p-2.5 rounded-2xl transition-all border flex flex-col justify-between ${
+          isBankrupt 
+            ? 'player-bankrupt-card border-red-600/80 shadow-inner' 
+            : (isSelected 
+                ? 'bg-yellow-500/15 border-yellow-400 ring-2 ring-yellow-400/40 shadow-lg cursor-pointer' 
+                : 'bg-black/40 border-white/10 hover:border-white/30 cursor-pointer')
+        }`;
+
+        let roleBadge = '';
+        if (player.isCpu) {
+          const info = PERSONALITY_INFO[player.personality] || PERSONALITY_INFO.cautious;
+          roleBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded bg-purple-900/60 border border-purple-500/40 ${info.color} font-bold">${info.icon} ${info.label}</span>`;
+        } else {
+          roleBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded bg-blue-900/60 border border-blue-500/40 text-blue-300 font-bold">👤 操作中</span>`;
+        }
+
+        let actionBtnHtml = `
+          <button class="btn-swap-player text-[10px] px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/40 font-bold transition active:scale-95" data-pid="${player.id}" title="この席のキャラを別のキャラに入れ替えます">
+            🔁 入替
+          </button>
+        `;
+
+        if (isBankrupt) {
+          actionBtnHtml += `<button class="btn-reload-player text-[10px] px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-bold tracking-wider" data-pid="${player.id}">復活</button>`;
+        } else if (players.length > 1 && !isSpinning) {
+          actionBtnHtml += `<button class="btn-remove-player text-gray-500 hover:text-red-400 text-xs px-1" data-pid="${player.id}" title="退出">&times;</button>`;
+        }
+
+        const avatarSvgHtml = getAvatarSvg(player);
+
+        /* Build active bet tags to display directly beneath the title */
+        let activeBetsHtml = '';
+        if (player.bets.size > 0) {
+          activeBetsHtml = Array.from(player.bets.entries()).map(([betKey, amt]) => {
+            const info = formatBetLabel(betKey);
+            let badgeBg = 'bg-slate-700 text-gray-200 border-gray-500';
+            if (info.color === 'red') badgeBg = 'bg-red-700 text-white border-red-500';
+            else if (info.color === 'black') badgeBg = 'bg-neutral-800 text-white border-neutral-600';
+            else if (info.color === 'green') badgeBg = 'bg-emerald-700 text-white border-emerald-500';
+            else if (info.color === 'blue') badgeBg = 'bg-blue-800 text-blue-200 border-blue-500';
+            else if (info.color === 'amber') badgeBg = 'bg-amber-800 text-amber-200 border-amber-500';
+            else if (info.color === 'purple') badgeBg = 'bg-purple-800 text-purple-200 border-purple-500';
+
+            return `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold border ${badgeBg} shadow-xs whitespace-nowrap" title="${info.label}: $${amt}">${info.tag} <span class="text-yellow-300 font-mono">$${amt}</span></span>`;
+          }).join('');
+        } else {
+          activeBetsHtml = `<span class="text-[9px] text-gray-400 italic">待機中 (未ベット)</span>`;
+        }
+
+        /* Recent round outcome text */
+        let lastResultSummary = '出走前';
+        let lastResultColor = 'text-gray-400';
+        if (player.roundHistory && player.roundHistory.length > 0) {
+          const lastH = player.roundHistory[0];
+          if (lastH.netProfit > 0) {
+            lastResultSummary = `前回: +$${lastH.netProfit}`;
+            lastResultColor = 'text-emerald-400 font-bold';
+          } else if (lastH.netProfit < 0) {
+            lastResultSummary = `前回: -$${Math.abs(lastH.netProfit)}`;
+            lastResultColor = 'text-rose-400 font-bold';
+          } else {
+            lastResultSummary = `前回: $0`;
+            lastResultColor = 'text-gray-300';
+          }
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="flex items-center justify-between gap-1 mb-1">
+              <div class="flex items-center gap-1.5 truncate">
+                <span class="w-3 h-3 rounded-full flex-shrink-0 shadow" style="background-color: ${pColor.bg}"></span>
+                <span class="font-bold text-xs truncate ${isSelected ? 'text-yellow-400' : 'text-white'}">${player.name}</span>
+              </div>
+              <div class="flex items-center gap-1">
+                ${roleBadge}
+                ${actionBtnHtml}
+              </div>
+            </div>
+
+            <!-- Avatar + Speech Bubble -->
+            <div class="flex items-center gap-2 my-1">
+              ${avatarSvgHtml}
+              <div class="flex-1 min-w-0">
+                <div class="speech-bubble px-2 py-1 rounded-xl text-[10.5px] leading-tight text-gray-200 truncate" title="${player.speech || ''}">
+                  ${player.speech || (isBankrupt ? 'トホホ…一文無しだ…' : '……')}
+                </div>
+                <!-- Character Title -->
+                <div class="mt-0.5 flex items-center justify-between text-[9.5px]">
+                  <span class="text-gray-400 truncate font-medium">${player.title || ''}</span>
+                  ${isBankrupt 
+                    ? '<span class="text-red-400 font-bold">💸 破産</span>' 
+                    : (player.mood === 'ecstatic' 
+                        ? '<span class="text-yellow-400 font-bold animate-pulse">🔥 絶頂！</span>' 
+                        : (player.mood === 'panicked' 
+                            ? '<span class="text-rose-400 font-bold">⚠️ 大焦り</span>' 
+                            : ''))}
+                </div>
+              </div>
+            </div>
+
+            <!-- TARGET BET LOCATIONS (Directly under the Title) -->
+            <div class="mt-1.5 p-1.5 rounded-xl bg-black/60 border border-yellow-500/25">
+              <div class="flex items-center justify-between text-[9px] font-bold text-gray-300 mb-1">
+                <span class="text-yellow-400 flex items-center gap-1">🎯 今回のベット:</span>
+                <span class="font-mono text-white text-[9.5px]">${player.bets.size > 0 ? `$${totalBet}` : ''}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 max-h-14 overflow-y-auto custom-scroll">
+                ${activeBetsHtml}
+              </div>
+            </div>
+          </div>
+
+          <!-- Footer Info: Balances & History button -->
+          <div class="pt-1.5 border-t border-white/5 mt-1.5">
+            <div class="flex items-center justify-between text-xs">
+              <div>
+                <span class="text-[9px] text-gray-400 block leading-none">所持金</span>
+                <span class="font-casino font-bold ${isBankrupt ? 'text-red-400 line-through' : 'text-yellow-300'} text-xs sm:text-sm">$${player.balance.toLocaleString()}</span>
+              </div>
+              <div class="text-right flex items-center gap-2">
+                <div>
+                  <span class="text-[9px] text-gray-400 block leading-none">状況</span>
+                  <span class="${lastResultColor} text-[10px] block leading-none mt-0.5">${lastResultSummary}</span>
+                </div>
+                <button class="btn-show-history text-[9.5px] px-1.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-yellow-300 border border-yellow-500/30 font-bold" data-pid="${player.id}" title="過去の出目・賭け履歴を確認">
+                  📜 履歴
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        card.addEventListener('click', (e) => {
+          if (e.target.closest('.btn-remove-player') || e.target.closest('.btn-reload-player') || e.target.closest('.btn-swap-player') || e.target.closest('.btn-show-history')) return;
+          if (!player.isCpu) {
+            activePlayerId = player.id;
+            updateActivePlayerBanner();
+            renderPlayersList();
+          } else {
+            showToast(player.name, player.speech || `${player.name} が戦況を見守っています`, "🤖");
+          }
+        });
+
+        container.appendChild(card);
+      });
+
+      // Event listeners for card buttons
+      container.querySelectorAll('.btn-swap-player').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (isSpinning) {
+            showToast("操作不可", "ホイール回転中は入れ替えできません", "⚠️");
+            return;
+          }
+          const pid = parseInt(btn.dataset.pid, 10);
+          openSwapModalForPlayer(pid);
+        });
+      });
+
+      container.querySelectorAll('.btn-show-history').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pid = parseInt(btn.dataset.pid, 10);
+          showPlayerHistoryModal(pid);
+        });
+      });
+
+      container.querySelectorAll('.btn-remove-player').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pid = parseInt(btn.dataset.pid, 10);
+          removePlayer(pid);
+        });
+      });
+
+      container.querySelectorAll('.btn-reload-player').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const pid = parseInt(btn.dataset.pid, 10);
+          const target = players.find(p => p.id === pid);
+          if (target) {
+            target.balance = 1000;
+            target.initialBalance = 1000;
+            target.mood = 'neutral';
+            target.speech = target.isCpu ? '奇跡の融資！リベンジ戦へ出陣だ！' : '再挑戦だ！';
+            playWinSound();
+            renderPlayersList();
+            showToast("復活！", `${target.name} に $1,000 が融資され復帰しました！`, "💵");
+          }
+        });
+      });
+
+      updateActivePlayerBanner();
+    }
+
+    function showPlayerHistoryModal(pid) {
+      const player = players.find(p => p.id === pid);
+      if (!player) return;
+
+      const modal = document.getElementById('player-history-modal');
+      const title = document.getElementById('history-modal-title');
+      const content = document.getElementById('history-modal-content');
+
+      title.innerHTML = `<span>📜</span> ${player.name} のベット履歴`;
+      content.innerHTML = '';
+
+      if (!player.roundHistory || player.roundHistory.length === 0) {
+        content.innerHTML = `
+          <div class="text-center py-6 text-gray-400 text-xs italic">
+            まだベット履歴がありません。ルーレットを回すとここに結果が記録されます。
+          </div>
+        `;
+      } else {
+        player.roundHistory.forEach((rec, idx) => {
+          const item = document.createElement('div');
+          item.className = "p-2.5 rounded-xl bg-black/40 border border-white/10 text-xs";
+
+          const winColor = getNumberColor(rec.winNum);
+          const winBadgeBg = winColor === 'red' ? 'bg-red-600' : (winColor === 'green' ? 'bg-emerald-600' : 'bg-neutral-800');
+
+          const netClass = rec.netProfit > 0 ? 'text-emerald-400 font-bold' : (rec.netProfit < 0 ? 'text-rose-400 font-bold' : 'text-gray-300');
+          const netSign = rec.netProfit > 0 ? `+$${rec.netProfit}` : (rec.netProfit < 0 ? `-$${Math.abs(rec.netProfit)}` : '$0');
+
+          const betsDetail = rec.bets.map(b => {
+            const info = formatBetLabel(b.key);
+            const isHit = b.payout > 0;
+            return `<span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] ${isHit ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/50' : 'bg-slate-800 text-gray-400 border border-white/5'}">${info.tag} $${b.amount} ${isHit ? '🎯' : '❌'}</span>`;
+          }).join(' ');
+
+          item.innerHTML = `
+            <div class="flex items-center justify-between mb-1 border-b border-white/5 pb-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-[10px] text-gray-400">Round ${player.roundHistory.length - idx}</span>
+                <span class="w-5 h-5 rounded-full ${winBadgeBg} text-white font-bold text-[10px] flex items-center justify-center border border-white/20">${rec.winNum}</span>
+              </div>
+              <div class="${netClass} text-xs">
+                ${netSign} <span class="text-[9px] text-gray-400 font-normal">(残高: $${rec.balanceAfter.toLocaleString()})</span>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1">
+              ${betsDetail}
+            </div>
+          `;
+          content.appendChild(item);
+        });
+      }
+
+      modal.classList.remove('hidden');
+    }
+
+    document.getElementById('history-modal-close-btn').addEventListener('click', () => {
+      document.getElementById('player-history-modal').classList.add('hidden');
+    });
+    document.getElementById('history-modal-ok-btn').addEventListener('click', () => {
+      document.getElementById('player-history-modal').classList.add('hidden');
+    });
+
+    function updateActivePlayerBanner() {
+      const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+      const bannerName = document.getElementById('active-player-name');
+      if (activePlayer) {
+        const pColor = PLAYER_COLORS[activePlayer.colorIndex];
+        bannerName.textContent = `${activePlayer.name} (残高: $${activePlayer.balance.toLocaleString()})`;
+        bannerName.style.color = pColor.bg;
+      } else {
+        bannerName.textContent = "全席CPU観戦中（見物席）";
+        bannerName.style.color = "#a855f7";
+      }
+
+      if (isAllInSelected) {
+        document.getElementById('active-chip-value-display').innerHTML = `<span class="text-rose-400 font-black animate-pulse">🔥 ALL IN 全額</span>`;
+      } else {
+        document.getElementById('active-chip-value-display').textContent = `$${selectedChipValue}`;
+      }
+
+      updateRecommendedBetGuide();
+    }
+
+    function updateRecommendedBetGuide() {
+      const activeHuman = players.find(p => p.id === activePlayerId && !p.isCpu);
+      const guideContainer = document.getElementById('recommended-bet-guide');
+      if (!activeHuman || activeHuman.balance <= 0) {
+        guideContainer.classList.add('opacity-40');
+        return;
+      }
+      guideContainer.classList.remove('opacity-40');
+
+      const config = PRESET_CONFIGS[gamePreset];
+      const balanceRatio = Math.max(0.1, activeHuman.balance / 1000);
+      const lowRec = Math.max(1, Math.round(config.recommendedRange[0] * balanceRatio));
+      const highRec = Math.max(5, Math.round(config.recommendedRange[1] * balanceRatio));
+
+      document.getElementById('recommended-bet-range').textContent = `$${lowRec}〜$${highRec}`;
+
+      const currentTotalBet = getPlayerTotalBet(activeHuman);
+      const evalTag = document.getElementById('current-bet-evaluation-tag');
+
+      if (currentTotalBet === 0) {
+        evalTag.textContent = '未ベット';
+        evalTag.className = 'text-[9.5px] px-1.5 py-0.2 rounded bg-slate-800 text-gray-400 border border-white/10 font-bold';
+      } else if (currentTotalBet < lowRec) {
+        evalTag.textContent = '手堅い (少額)';
+        evalTag.className = 'text-[9.5px] px-1.5 py-0.2 rounded bg-blue-900/80 text-blue-300 border border-blue-500/40 font-bold';
+      } else if (currentTotalBet <= highRec) {
+        evalTag.textContent = '適正 (推奨)';
+        evalTag.className = 'text-[9.5px] px-1.5 py-0.2 rounded bg-emerald-900/80 text-emerald-300 border border-emerald-500/40 font-bold';
+      } else if (currentTotalBet <= highRec * 2) {
+        evalTag.textContent = '強気';
+        evalTag.className = 'text-[9.5px] px-1.5 py-0.2 rounded bg-amber-900/80 text-amber-300 border border-amber-500/40 font-bold';
+      } else {
+        evalTag.textContent = '激熱・高リスク';
+        evalTag.className = 'text-[9.5px] px-1.5 py-0.2 rounded bg-rose-900/80 text-rose-300 border border-rose-500/40 font-bold animate-pulse';
+      }
+    }
+
+    function removePlayer(pid) {
+      if (players.length <= 1) return;
+      const target = players.find(p => p.id === pid);
+      if (!target) return;
+
+      target.bets.clear();
+      players = players.filter(p => p.id !== pid);
+      if (activePlayerId === pid) {
+        const nextHuman = players.find(p => !p.isCpu);
+        activePlayerId = nextHuman ? nextHuman.id : (players[0] ? players[0].id : null);
+      }
+      refreshAllChipBadges();
+      renderPlayersList();
+      showToast("退出", `${target.name} が席を立ちました`, "👋");
+    }
+
+    function renderNumbersGrid() {
+      const anchor = document.getElementById('numbers-grid');
+      if (!anchor) return;
+      anchor.innerHTML = '';
+
+      for (let num = 1; num <= 36; num++) {
+        const color = getNumberColor(num);
+        const cell = document.createElement('div');
+        cell.className = "bet-cell bg-emerald-950/60 hover:brightness-125 border border-white/20 p-1 flex items-center justify-center min-h-[30px] sm:min-h-[34px] rounded";
+        cell.dataset.betType = 'number';
+        cell.dataset.betValue = num.toString();
+
+        const ovalBg = color === 'red' 
+          ? 'bg-red-600 border border-red-300 text-white' 
+          : 'bg-neutral-900 border border-neutral-600 text-white';
+
+        cell.innerHTML = `
+          <div class="num-oval ${ovalBg}">
+            <span class="font-casino text-xs sm:text-sm font-black leading-none">${num}</span>
+          </div>
+          <div class="chips-stack-wrapper"></div>
+        `;
+
+        // Attach hover explanation
+        attachCellHoverTooltip(cell);
+
+        anchor.appendChild(cell);
+      }
+    }
+
+    function setupBetInteractions() {
+      // Attach hover tooltips to static outside bet cells (0, Red, Black, Dozens, Columns, etc.)
+      document.querySelectorAll('.bet-cell').forEach(cell => {
+        attachCellHoverTooltip(cell);
+      });
+
+      document.querySelectorAll('.casino-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          document.querySelectorAll('.casino-chip').forEach(c => c.classList.remove('active-chip'));
+          btn.classList.add('active-chip');
+          isAllInSelected = false;
+          const btnAllIn = document.getElementById('btn-all-in');
+          if (btnAllIn) btnAllIn.classList.remove('ring-4', 'ring-yellow-400');
+          selectedChipValue = parseInt(btn.dataset.chipValue, 10);
+          updateActivePlayerBanner();
+          playChipSound();
+        });
+      });
+
+      const btnAllIn = document.getElementById('btn-all-in');
+      if (btnAllIn) {
+        btnAllIn.addEventListener('click', () => {
+          const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+          if (!activePlayer) {
+            showToast("観戦中", "人間プレイヤーを操作中ではありません", "⚠️");
+            return;
+          }
+          if (activePlayer.balance <= 0) {
+            showToast("残高なし", "所持金がありません！", "⚠️");
+            return;
+          }
+
+          isAllInSelected = !isAllInSelected;
+          if (isAllInSelected) {
+            document.querySelectorAll('.casino-chip').forEach(c => c.classList.remove('active-chip'));
+            btnAllIn.classList.add('ring-4', 'ring-yellow-400');
+            showToast("🔥 ALL IN モード", "賭けたいマスをタップして全財産を一撃投入！", "💰");
+          } else {
+            btnAllIn.classList.remove('ring-4', 'ring-yellow-400');
+            const defaultChip = document.querySelector('.casino-chip[data-chip-value="1"]');
+            if (defaultChip) defaultChip.classList.add('active-chip');
+            selectedChipValue = 1;
+          }
+          updateActivePlayerBanner();
+          playChipSound();
+        });
+      }
+
+      document.querySelectorAll('.bet-cell').forEach(cell => {
+        cell.addEventListener('click', () => {
+          if (isSpinning) return;
+          const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+          if (!activePlayer) {
+            showToast("観戦中", "人間プレイヤーを操作中ではありません。観戦をお楽しみください", "ℹ️");
+            return;
+          }
+
+          const type = cell.dataset.betType;
+          const value = cell.dataset.betValue;
+          const betKey = `${type}_${value}`;
+
+          let amountToBet = selectedChipValue;
+          if (isAllInSelected) {
+            if (activePlayer.balance <= 0) {
+              showToast("資金不足", "賭ける所持金がありません！", "⚠️");
+              return;
+            }
+            amountToBet = activePlayer.balance;
+          } else {
+            if (activePlayer.balance < amountToBet) {
+              showToast("資金不足", `${activePlayer.name} の所持金が足りません！`, "⚠️");
+              return;
+            }
+          }
+
+          activePlayer.balance -= amountToBet;
+          const currentBet = activePlayer.bets.get(betKey) || 0;
+          activePlayer.bets.set(betKey, currentBet + amountToBet);
+
+          if (isAllInSelected) {
+            showToast("🔥 ALL IN 完了！", `${activePlayer.name} が $${amountToBet} を全額投入！`, "🔥");
+            isAllInSelected = false;
+            if (btnAllIn) btnAllIn.classList.remove('ring-4', 'ring-yellow-400');
+            const defaultChip = document.querySelector('.casino-chip[data-chip-value="1"]');
+            if (defaultChip) defaultChip.classList.add('active-chip');
+            selectedChipValue = 1;
+          }
+
+          playChipSound();
+          renderPlayersList();
+          renderCellChips(cell);
+        });
+
+        cell.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          if (isSpinning) return;
+          const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+          if (!activePlayer) return;
+
+          const type = cell.dataset.betType;
+          const value = cell.dataset.betValue;
+          const betKey = `${type}_${value}`;
+
+          if (activePlayer.bets.has(betKey)) {
+            const amount = activePlayer.bets.get(betKey);
+            activePlayer.balance += amount;
+            activePlayer.bets.delete(betKey);
+            playChipSound();
+            renderPlayersList();
+            renderCellChips(cell);
+          }
+        });
+      });
+
+      const btnClear = document.getElementById('btn-clear');
+      if (btnClear) {
+        btnClear.addEventListener('click', () => {
+          if (isSpinning) return;
+          const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+          if (!activePlayer || activePlayer.bets.size === 0) return;
+
+          activePlayer.bets.forEach((val) => {
+            activePlayer.balance += val;
+          });
+          activePlayer.bets.clear();
+          refreshAllChipBadges();
+          renderPlayersList();
+          playChipSound();
+          showToast("クリア", `${activePlayer.name} のベットを返却しました`, "🔄");
+        });
+      }
+
+      const btnDouble = document.getElementById('btn-double');
+      if (btnDouble) {
+        btnDouble.addEventListener('click', () => {
+          if (isSpinning) return;
+          const activePlayer = players.find(p => p.id === activePlayerId && !p.isCpu);
+          if (!activePlayer || activePlayer.bets.size === 0) return;
+
+          const totalCurrent = getPlayerTotalBet(activePlayer);
+          if (activePlayer.balance < totalCurrent) {
+            showToast("資金不足", "ベットを倍にする残高がありません", "⚠️");
+            return;
+          }
+          activePlayer.balance -= totalCurrent;
+          activePlayer.bets.forEach((val, key) => {
+            activePlayer.bets.set(key, val * 2);
+          });
+          playChipSound();
+          refreshAllChipBadges();
+          renderPlayersList();
+        });
+      }
+
+      const btnSpin = document.getElementById('btn-spin');
+      if (btnSpin) {
+        btnSpin.addEventListener('click', () => {
+          if (isSpinning) return;
+          executeRoundSpin();
+        });
+      }
+    }
+
+    function startNewBettingRound() {
+      // CPUs place bets immediately ahead of human players
+      runCpuAIBetting();
+      refreshAllChipBadges();
+      renderPlayersList();
+      
+      const humanPlayers = players.filter(p => !p.isCpu);
+      if (humanPlayers.length > 0) {
+        document.getElementById('spin-status-text').textContent = "CPUがベットを完了しました。あなたのベットをお待ちしています";
+      } else {
+        document.getElementById('spin-status-text').textContent = "CPU全員がベットを完了しました";
+      }
+    }
+
+    function executeRoundSpin() {
+      if (isSpinning) return;
+
+      // Ensure any newly added/unbet CPUs also have bets
+      players.forEach(p => {
+        if (p.isCpu && p.balance > 0 && p.bets.size === 0) {
+          runSingleCpuBet(p);
+        }
+      });
+
+      const totalTableBet = players.reduce((sum, p) => sum + getPlayerTotalBet(p), 0);
+      if (totalTableBet === 0) {
+        showToast("ベットなし", "ベットが1つも置かれていません", "🎲");
+        if (isSpectatorAutoPlay) {
+          toggleSpectatorAutoPlay(false);
+        }
+        return;
+      }
+
+      refreshAllChipBadges();
+      renderPlayersList();
+      startSpin();
+    }
+
+    function renderCellChips(cell) {
+      const wrapper = cell.querySelector('.chips-stack-wrapper');
+      if (!wrapper) return;
+      wrapper.innerHTML = '';
+
+      const type = cell.dataset.betType;
+      const value = cell.dataset.betValue;
+      const betKey = `${type}_${value}`;
+
+      players.forEach(p => {
+        if (p.bets.has(betKey)) {
+          const amt = p.bets.get(betKey);
+          const pColor = PLAYER_COLORS[p.colorIndex];
+          const badge = document.createElement('div');
+          badge.className = 'bet-chip-badge';
+          badge.style.backgroundColor = pColor.bg;
+          badge.style.color = pColor.text;
+          badge.style.borderColor = pColor.border;
+          badge.textContent = amt >= 1000 ? `${(amt/1000).toFixed(0)}k` : amt;
+          badge.title = `${p.name}: $${amt}`;
+          wrapper.appendChild(badge);
+        }
+      });
+    }
+
+    function refreshAllChipBadges() {
+      document.querySelectorAll('.bet-cell').forEach(cell => {
+        renderCellChips(cell);
+      });
+    }
+
+    function runSingleCpuBet(cpu) {
+      if (!cpu.isCpu) return;
+
+      if (cpu.balance <= 0) {
+        cpu.bets.clear();
+        cpu.mood = 'bankrupt';
+        cpu.speech = (cpu.profileRef && cpu.profileRef.speechBankrupt) ? cpu.profileRef.speechBankrupt : '破産中…トホホ…';
+        return;
+      }
+
+      // If already bet this round, don't overwrite
+      if (cpu.bets.size > 0) return;
+
+      cpu.bets.clear();
+      const pStyle = cpu.personality || 'cautious';
+      const profile = cpu.profileRef || UNIQUE_CHARACTERS[pStyle][0];
+      const budget = Math.min(cpu.balance, Math.floor(cpu.balance * 0.22) + 5);
+
+      if (pStyle === 'cautious') {
+        const outsideOptions = [
+          { type: 'color', val: 'red', name: 'RED' },
+          { type: 'color', val: 'black', name: 'BLACK' },
+          { type: 'evenodd', val: 'even', name: 'EVEN(偶数)' },
+          { type: 'evenodd', val: 'odd', name: 'ODD(奇数)' },
+          { type: 'lowhigh', val: 'low', name: '1-18' },
+          { type: 'lowhigh', val: 'high', name: '19-36' }
+        ];
+        const pick = outsideOptions[Math.floor(Math.random() * outsideOptions.length)];
+        const betAmt = Math.min(cpu.balance, Math.max(1, Math.floor(budget / 2)));
+        cpu.balance -= betAmt;
+        cpu.bets.set(`${pick.type}_${pick.val}`, betAmt);
+        cpu.speech = profile.speechBet ? profile.speechBet(pick.name) : `${pick.name}に$${betAmt}ベット。`;
+
+      } else if (pStyle === 'highroller') {
+        const count = Math.min(cpu.balance >= 30 ? 2 : 1, 2);
+        const chipStep = Math.max(1, Math.floor(budget / count));
+        let pickedNums = [];
+        for (let i = 0; i < count; i++) {
+          if (cpu.balance < chipStep) break;
+          const targetNum = Math.floor(Math.random() * 37);
+          cpu.balance -= chipStep;
+          const key = `number_${targetNum}`;
+          cpu.bets.set(key, (cpu.bets.get(key) || 0) + chipStep);
+          pickedNums.push(targetNum);
+        }
+        const numStr = pickedNums.join(', ');
+        cpu.speech = profile.speechBet ? profile.speechBet(numStr) : `【${numStr}】に36倍勝負だ！`;
+
+      } else if (pStyle === 'balanced') {
+        const dozenVal = (Math.floor(Math.random() * 3) + 1).toString();
+        const mainBet = Math.min(cpu.balance, Math.max(1, Math.floor(budget * 0.6)));
+        cpu.balance -= mainBet;
+        cpu.bets.set(`dozen_${dozenVal}`, mainBet);
+
+        let extraStr = `${dozenVal}番ダース`;
+        if (cpu.balance >= 1) {
+          const luckyNum = Math.floor(Math.random() * 37);
+          const sideBet = Math.min(cpu.balance, Math.max(1, Math.floor(budget * 0.4)));
+          cpu.balance -= sideBet;
+          cpu.bets.set(`number_${luckyNum}`, sideBet);
+          extraStr += `と数字【${luckyNum}】`;
+        }
+        cpu.speech = profile.speechBet ? profile.speechBet(extraStr) : `${extraStr}で分散投資！`;
+
+      } else if (pStyle === 'wildcard') {
+        const randTypes = [
+          () => ({ type: 'color', val: Math.random() > 0.5 ? 'red' : 'black', name: 'カラー' }),
+          () => ({ type: 'col', val: (Math.floor(Math.random() * 3) + 1).toString(), name: 'カラム' }),
+          () => ({ type: 'number', val: Math.floor(Math.random() * 37).toString(), name: '数字' }),
+          () => ({ type: 'evenodd', val: Math.random() > 0.5 ? 'even' : 'odd', name: '偶奇' })
+        ];
+        const betCount = Math.floor(Math.random() * 2) + 1;
+        let picks = [];
+        for (let i = 0; i < betCount; i++) {
+          if (cpu.balance < 1) break;
+          const item = randTypes[Math.floor(Math.random() * randTypes.length)]();
+          const amt = Math.min(cpu.balance, Math.max(1, 5));
+          cpu.balance -= amt;
+          const key = `${item.type}_${item.val}`;
+          cpu.bets.set(key, (cpu.bets.get(key) || 0) + amt);
+          picks.push(`${item.name}の${item.val}`);
+        }
+        cpu.speech = profile.speechBet ? profile.speechBet(picks.join('と')) : '風の囁くマスにチップを置いたよ〜♪';
+      }
+    }
+
+    function runCpuAIBetting() {
+      players.forEach(cpu => {
+        runSingleCpuBet(cpu);
+      });
+    }
+
+    let currentSelectedModalChar = ALL_CPU_CHARACTERS[0];
+    let modalRole = 'cpu';
+    let currentFilterFaction = 'all';
+
+    function openSwapModalForPlayer(playerId) {
+      targetSwapPlayerId = playerId;
+      const targetPlayer = players.find(p => p.id === playerId);
+      if (!targetPlayer) return;
+
+      const modal = document.getElementById('add-player-modal');
+      const heading = document.getElementById('modal-heading-title');
+      const indicator = document.getElementById('modal-target-seat-indicator');
+      const targetName = document.getElementById('modal-target-seat-name');
+      const confirmBtn = document.getElementById('btn-confirm-add-player');
+
+      heading.innerHTML = `<span>🔄</span> ${targetPlayer.name} を別のキャラに入れ替え`;
+      indicator.classList.remove('hidden');
+      targetName.textContent = `${targetPlayer.name} (${targetPlayer.isCpu ? 'CPU' : '人間'})`;
+      confirmBtn.textContent = `このキャラクターに入れ替える`;
+
+      modalRole = targetPlayer.isCpu ? 'cpu' : 'human';
+      updateRoleTabStyles();
+      
+      const unused = ALL_CPU_CHARACTERS.find(c => c.name !== targetPlayer.name);
+      currentSelectedModalChar = unused || ALL_CPU_CHARACTERS[0];
+
+      renderModalCharacterGrid();
+      updateModalPreview();
+      modal.classList.remove('hidden');
+    }
+
+    function updateRoleTabStyles() {
+      const roleHuman = document.getElementById('role-select-human');
+      const roleCpu = document.getElementById('role-select-cpu');
+      const factionTabs = document.getElementById('faction-tabs-container');
+
+      if (modalRole === 'cpu') {
+        roleCpu.className = "py-2 px-3 rounded-xl border border-yellow-500 bg-yellow-500/20 text-yellow-300 font-bold text-xs flex items-center justify-center gap-2";
+        roleHuman.className = "py-2 px-3 rounded-xl border border-white/20 bg-black/40 text-gray-300 font-semibold text-xs flex items-center justify-center gap-2";
+        factionTabs.classList.remove('hidden');
+      } else {
+        roleHuman.className = "py-2 px-3 rounded-xl border border-yellow-500 bg-yellow-500/20 text-yellow-300 font-bold text-xs flex items-center justify-center gap-2";
+        roleCpu.className = "py-2 px-3 rounded-xl border border-white/20 bg-black/40 text-gray-300 font-semibold text-xs flex items-center justify-center gap-2";
+        factionTabs.classList.add('hidden');
+      }
+    }
+
+    function renderModalCharacterGrid() {
+      const charGrid = document.getElementById('character-selection-grid');
+      charGrid.innerHTML = '';
+      
+      const existingNames = new Set(players.filter(p => targetSwapPlayerId === null || p.id !== targetSwapPlayerId).map(p => p.name));
+
+      let list = modalRole === 'human' ? UNIQUE_CHARACTERS.human : ALL_CPU_CHARACTERS;
+      if (modalRole === 'cpu' && currentFilterFaction !== 'all') {
+        list = list.filter(c => c.faction === currentFilterFaction);
+      }
+
+      list.forEach(c => {
+        const isCurrent = currentSelectedModalChar.name === c.name;
+        const isAlreadyIn = existingNames.has(c.name);
+
+        const item = document.createElement('div');
+        item.className = `p-2 rounded-xl border flex flex-col justify-between transition cursor-pointer ${
+          isAlreadyIn 
+            ? 'opacity-40 border-gray-700 bg-black/20 cursor-not-allowed pointer-events-none' 
+            : (isCurrent 
+                ? 'border-yellow-400 bg-yellow-500/20 ring-1 ring-yellow-400 shadow-md' 
+                : 'border-white/10 bg-slate-800/80 hover:border-white/30')
+        }`;
+
+        const factionBadge = c.faction === 'cautious' 
+          ? '🛡️ 堅実' : (c.faction === 'highroller' 
+              ? '⚡ 一攫千金' : (c.faction === 'balanced' 
+                  ? '⚖️ バランス' : (c.faction === 'wildcard' 
+                      ? '🎲 気まぐれ' : '👤 人間')));
+
+        item.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-xs ${isCurrent ? 'text-yellow-300' : 'text-white'} truncate">${c.name}</span>
+            <span class="text-[9px] px-1 py-0.2 rounded bg-black/40 text-gray-300">${factionBadge}</span>
+          </div>
+          <div class="text-[10px] text-gray-400 truncate mt-0.5">${c.title}</div>
+        `;
+
+        item.addEventListener('click', () => {
+          if (isAlreadyIn) return;
+          currentSelectedModalChar = c;
+          updateModalPreview();
+          renderModalCharacterGrid();
+        });
+
+        charGrid.appendChild(item);
+      });
+    }
+
+    function updateModalPreview() {
+      if (!currentSelectedModalChar) return;
+      document.getElementById('preview-char-name').textContent = currentSelectedModalChar.name;
+      document.getElementById('preview-char-title').textContent = currentSelectedModalChar.title;
+      document.getElementById('preview-char-greeting').textContent = `「${currentSelectedModalChar.greeting}」`;
+    }
+
+    function setupPlayerModal() {
+      const modal = document.getElementById('add-player-modal');
+      const openBtn = document.getElementById('btn-open-add-player');
+      const closeBtn = document.getElementById('modal-close-btn');
+      const roleHuman = document.getElementById('role-select-human');
+      const roleCpu = document.getElementById('role-select-cpu');
+      const factionTabs = document.querySelectorAll('.faction-tab-btn');
+      const confirmAddBtn = document.getElementById('btn-confirm-add-player');
+
+      openBtn.addEventListener('click', () => {
+        if (players.length >= 4) return;
+        targetSwapPlayerId = null;
+
+        document.getElementById('modal-heading-title').innerHTML = `<span>♠</span> キャラクターを直接指名して参加`;
+        document.getElementById('modal-target-seat-indicator').classList.add('hidden');
+        confirmAddBtn.textContent = `このキャラクターを着席させる`;
+
+        modalRole = 'cpu';
+        updateRoleTabStyles();
+
+        const existingNames = new Set(players.map(p => p.name));
+        const unused = ALL_CPU_CHARACTERS.find(c => !existingNames.has(c.name));
+        currentSelectedModalChar = unused || ALL_CPU_CHARACTERS[0];
+
+        renderModalCharacterGrid();
+        updateModalPreview();
+        modal.classList.remove('hidden');
+      });
+
+      closeBtn.addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+
+      roleHuman.addEventListener('click', () => {
+        modalRole = 'human';
+        updateRoleTabStyles();
+        currentSelectedModalChar = UNIQUE_CHARACTERS.human[0];
+        renderModalCharacterGrid();
+        updateModalPreview();
+      });
+
+      roleCpu.addEventListener('click', () => {
+        modalRole = 'cpu';
+        updateRoleTabStyles();
+        const existingNames = new Set(players.filter(p => targetSwapPlayerId === null || p.id !== targetSwapPlayerId).map(p => p.name));
+        const unused = ALL_CPU_CHARACTERS.find(c => !existingNames.has(c.name));
+        currentSelectedModalChar = unused || ALL_CPU_CHARACTERS[0];
+        renderModalCharacterGrid();
+        updateModalPreview();
+      });
+
+      factionTabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+          factionTabs.forEach(t => {
+            t.className = "faction-tab-btn py-1.5 px-1 rounded-lg border border-white/10 bg-black/40 text-gray-300 font-bold text-center truncate";
+          });
+          tab.className = "faction-tab-btn py-1.5 px-1 rounded-lg border border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center truncate";
+          currentFilterFaction = tab.dataset.faction;
+          renderModalCharacterGrid();
+        });
+      });
+
+      confirmAddBtn.addEventListener('click', () => {
+        if (targetSwapPlayerId !== null) {
+          const targetPlayer = players.find(p => p.id === targetSwapPlayerId);
+          if (targetPlayer) {
+            targetPlayer.bets.forEach((val) => { targetPlayer.balance += val; });
+            targetPlayer.bets.clear();
+
+            targetPlayer.name = currentSelectedModalChar.name;
+            targetPlayer.title = currentSelectedModalChar.title;
+            targetPlayer.isCpu = modalRole === 'cpu';
+            targetPlayer.personality = modalRole === 'cpu' ? currentSelectedModalChar.faction : null;
+            targetPlayer.profileRef = currentSelectedModalChar;
+            targetPlayer.mood = 'neutral';
+            targetPlayer.speech = currentSelectedModalChar.greeting;
+            targetPlayer.roundHistory = [];
+
+            if (targetPlayer.isCpu && activePlayerId === targetPlayer.id) {
+              const nextHuman = players.find(p => !p.isCpu);
+              activePlayerId = nextHuman ? nextHuman.id : null;
+            } else if (!targetPlayer.isCpu) {
+              activePlayerId = targetPlayer.id;
+            }
+
+            if (targetPlayer.isCpu && !isSpinning) {
+              runSingleCpuBet(targetPlayer);
+            }
+
+            refreshAllChipBadges();
+            renderPlayersList();
+            modal.classList.add('hidden');
+            showToast("入替完了", `${currentSelectedModalChar.name} が着席しました！`, "🔄");
+          }
+          return;
+        }
+
+        if (players.length >= 4) {
+          modal.classList.add('hidden');
+          return;
+        }
+
+        const usedColors = new Set(players.map(p => p.colorIndex));
+        let nextColor = 0;
+        for (let i = 0; i < PLAYER_COLORS.length; i++) {
+          if (!usedColors.has(i)) {
+            nextColor = i;
+            break;
+          }
+        }
+
+        const newPlayer = {
+          id: Date.now() + Math.floor(Math.random() * 100),
+          name: currentSelectedModalChar.name,
+          title: currentSelectedModalChar.title,
+          isCpu: modalRole === 'cpu',
+          personality: modalRole === 'cpu' ? currentSelectedModalChar.faction : null,
+          profileRef: currentSelectedModalChar,
+          colorIndex: nextColor,
+          balance: 1000,
+          initialBalance: 1000,
+          mood: 'neutral',
+          speech: currentSelectedModalChar.greeting,
+          bets: new Map(),
+          roundHistory: []
+        };
+
+        if (newPlayer.isCpu && !isSpinning) {
+          runSingleCpuBet(newPlayer);
+        }
+
+        players.push(newPlayer);
+        refreshAllChipBadges();
+        renderPlayersList();
+        modal.classList.add('hidden');
+        showToast("参加完了", `${newPlayer.name} が着席しました！`, "🎉");
+      });
+    }
+
+    function showToast(title, message, icon = "💰") {
+      const toast = document.getElementById('toast');
+      document.getElementById('toast-title').textContent = title;
+      document.getElementById('toast-message').textContent = message;
+      document.getElementById('toast-icon').textContent = icon;
+
+      toast.classList.remove('translate-y-20', 'opacity-0');
+      toast.classList.add('translate-y-0', 'opacity-100');
+
+      setTimeout(() => {
+        toast.classList.add('translate-y-20', 'opacity-0');
+        toast.classList.remove('translate-y-0', 'opacity-100');
+      }, 3000);
+    }
+
+    const canvas = document.getElementById('roulette-canvas');
+    const ctx = canvas.getContext('2d');
+    const NUM_POCKETS = WHEEL_NUMBERS.length;
+    const ARC_SIZE = (2 * Math.PI) / NUM_POCKETS;
+
+    let wheelAngle = 0;
+    let wheelSpeed = 0;
+    let ballAngle = 0;
+    let ballSpeed = 0;
+    let ballRadius = 158;
+    let targetNumber = null;
+    let spinPhase = 'idle';
+    let lastClickAngle = 0;
+
+    function drawWheel() {
+      const centerX = 200;
+      const centerY = 200;
+
+      const outerRimR = 192;
+      const ballGrooveR = 172;
+      const numberTrackR = 156;
+      const pocketInnerR = 118;
+      const hubR = 48;
+
+      ctx.clearRect(0, 0, 400, 400);
+      ctx.save();
+      ctx.translate(centerX, centerY);
+
+      // Outer Mahogany Rim
+      const rimGrad = ctx.createRadialGradient(0, 0, pocketInnerR, 0, 0, outerRimR);
+      rimGrad.addColorStop(0, '#42240c');
+      rimGrad.addColorStop(0.7, '#1f1005');
+      rimGrad.addColorStop(1, '#533418');
+      ctx.fillStyle = rimGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, outerRimR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Outer Golden Rings
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, outerRimR - 3, 0, Math.PI * 2);
+      ctx.stroke();
+
+      // Ball Track Groove
+      ctx.beginPath();
+      ctx.arc(0, 0, ballGrooveR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+      ctx.lineWidth = 4;
+      ctx.stroke();
+
+      // 8 Brass Deflectors
+      for (let d = 0; d < 8; d++) {
+        ctx.save();
+        ctx.rotate(d * (Math.PI / 4));
+        ctx.fillStyle = '#fef08a';
+        ctx.beginPath();
+        ctx.moveTo(0, -ballGrooveR - 4);
+        ctx.lineTo(3, -ballGrooveR);
+        ctx.lineTo(0, -ballGrooveR + 4);
+        ctx.lineTo(-3, -ballGrooveR);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // Rotating Wheel Segment
+      ctx.save();
+      ctx.rotate(wheelAngle);
+
+      /* STEP 1: Draw ALL 37 pocket background segments FIRST so no fill covers any numbers */
+      for (let i = 0; i < NUM_POCKETS; i++) {
+        const pocketCenterAngle = i * ARC_SIZE;
+        const startAngle = pocketCenterAngle - ARC_SIZE / 2;
+        const endAngle = pocketCenterAngle + ARC_SIZE / 2;
+        const num = WHEEL_NUMBERS[i];
+        const color = getNumberColor(num);
+
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.arc(0, 0, numberTrackR, startAngle, endAngle);
+        ctx.closePath();
+
+        if (color === 'green') {
+          ctx.fillStyle = '#047857';
+        } else if (color === 'red') {
+          ctx.fillStyle = '#b91c1c';
+        } else {
+          ctx.fillStyle = '#171717';
+        }
+        ctx.fill();
+
+        // Pocket boundary divider wire
+        ctx.strokeStyle = '#eab308';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      /* STEP 2: Draw ALL 37 pocket numbers on top of the backgrounds (Zero occlusion guarantee) */
+      for (let i = 0; i < NUM_POCKETS; i++) {
+        const pocketCenterAngle = i * ARC_SIZE;
+        const num = WHEEL_NUMBERS[i];
+
+        ctx.save();
+        ctx.rotate(pocketCenterAngle);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 10.5px Inter, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(num.toString(), numberTrackR - 18, 0);
+        ctx.restore();
+      }
+
+      // Inner Pocket Separator Ring
+      ctx.beginPath();
+      ctx.arc(0, 0, pocketInnerR, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ca8a04';
+      ctx.lineWidth = 2.5;
+      ctx.stroke();
+
+      // Inner Cone
+      const coneGrad = ctx.createRadialGradient(0, 0, hubR, 0, 0, pocketInnerR);
+      coneGrad.addColorStop(0, '#78350f');
+      coneGrad.addColorStop(0.5, '#451a03');
+      coneGrad.addColorStop(1, '#854d0e');
+      ctx.fillStyle = coneGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, pocketInnerR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Brass Center Hub Turret
+      const turretGrad = ctx.createRadialGradient(-8, -8, 4, 0, 0, hubR);
+      turretGrad.addColorStop(0, '#fef08a');
+      turretGrad.addColorStop(0.4, '#eab308');
+      turretGrad.addColorStop(0.8, '#854d0e');
+      turretGrad.addColorStop(1, '#3b1c04');
+      ctx.fillStyle = turretGrad;
+      ctx.beginPath();
+      ctx.arc(0, 0, hubR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fef08a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Turret handles
+      ctx.strokeStyle = '#fde047';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      for (let h = 0; h < 4; h++) {
+        ctx.rotate(Math.PI / 2);
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(0, hubR + 10);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(0, hubR + 10, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#fef08a';
+        ctx.fill();
+      }
+
+      ctx.restore(); // Restore rotating wheel segment
+
+      // Ball Rendering
+      if (spinPhase !== 'idle' || targetNumber !== null) {
+        const ballX = Math.cos(ballAngle) * ballRadius;
+        const ballY = Math.sin(ballAngle) * ballRadius;
+
+        ctx.beginPath();
+        ctx.arc(ballX + 2, ballY + 3, 6, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fill();
+
+        const ballGrad = ctx.createRadialGradient(ballX - 2, ballY - 2, 1, ballX, ballY, 6);
+        ballGrad.addColorStop(0, '#ffffff');
+        ballGrad.addColorStop(0.6, '#f1f5f9');
+        ballGrad.addColorStop(1, '#cbd5e1');
+        ctx.fillStyle = ballGrad;
+        ctx.beginPath();
+        ctx.arc(ballX, ballY, 6, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      }
+
+      ctx.restore(); // Restore main canvas translate
+    }
+
+    let spinStartTime = 0;
+    let totalSpinDuration = 5200;
+    let ballTargetPocketAngle = 0;
+
+    function startSpin() {
+      initAudio();
+      isSpinning = true;
+      const btnSpin = document.getElementById('btn-spin');
+      const btnClear = document.getElementById('btn-clear');
+      const btnDouble = document.getElementById('btn-double');
+      const btnAddPlayer = document.getElementById('btn-open-add-player');
+      if (btnSpin) btnSpin.disabled = true;
+      if (btnClear) btnClear.disabled = true;
+      if (btnDouble) btnDouble.disabled = true;
+      if (btnAddPlayer) btnAddPlayer.disabled = true;
+
+      document.getElementById('spin-indicator-dot').className = "w-2.5 h-2.5 rounded-full bg-amber-400 animate-ping";
+      document.getElementById('spin-status-text').textContent = "ノーモアベット！ホイール回転中...";
+      document.getElementById('win-loss-feedback').textContent = "";
+      hideResultOverlay();
+
+      targetNumber = WHEEL_NUMBERS[Math.floor(Math.random() * WHEEL_NUMBERS.length)];
+
+      wheelSpeed = 0.08;
+      ballSpeed = -0.32;
+      ballRadius = 172;
+      spinPhase = 'spinning';
+      spinStartTime = performance.now();
+
+      const targetIndex = WHEEL_NUMBERS.indexOf(targetNumber);
+      ballTargetPocketAngle = targetIndex * ARC_SIZE;
+    }
+
+    function animate(currentTime) {
+      if (isSpinning) {
+        const elapsed = currentTime - spinStartTime;
+        const progress = Math.min(elapsed / totalSpinDuration, 1);
+
+        wheelAngle = (wheelAngle + wheelSpeed) % (Math.PI * 2);
+        ballAngle = (ballAngle + ballSpeed) % (Math.PI * 2);
+
+        if (progress < 0.85 && Math.abs(ballAngle - lastClickAngle) > (Math.PI / 4)) {
+          playClickSound();
+          lastClickAngle = ballAngle;
+        }
+
+        if (progress < 0.6) {
+          ballRadius = 172;
+          wheelSpeed *= 0.999;
+          ballSpeed *= 0.996;
+        } else if (progress < 0.85) {
+          spinPhase = 'stopping';
+          const decayProgress = (progress - 0.6) / 0.25;
+          ballRadius = 172 - decayProgress * (172 - 138);
+          wheelSpeed *= 0.995;
+          ballSpeed *= 0.985;
+        } else {
+          spinPhase = 'bounce';
+          const settleProgress = (progress - 0.85) / 0.15;
+          const pocketAbsoluteAngle = (wheelAngle + ballTargetPocketAngle) % (Math.PI * 2);
+          ballAngle = pocketAbsoluteAngle;
+          const bounce = Math.sin(settleProgress * Math.PI * 4) * (1 - settleProgress) * 6;
+          ballRadius = 138 + bounce;
+          wheelSpeed *= 0.98;
+        }
+
+        if (progress >= 1) {
+          isSpinning = false;
+          spinPhase = 'settled';
+          wheelSpeed = 0;
+          ballSpeed = 0;
+          const pocketAbsoluteAngle = (wheelAngle + ballTargetPocketAngle) % (Math.PI * 2);
+          ballAngle = pocketAbsoluteAngle;
+          ballRadius = 138;
+          resolveSpinResult(targetNumber);
+        }
+      } else {
+        if (spinPhase === 'settled') {
+          wheelAngle = (wheelAngle + 0.0005) % (Math.PI * 2);
+          const pocketAbsoluteAngle = (wheelAngle + ballTargetPocketAngle) % (Math.PI * 2);
+          ballAngle = pocketAbsoluteAngle;
+        } else {
+          wheelAngle = (wheelAngle + 0.001) % (Math.PI * 2);
+        }
+      }
+
+      drawWheel();
+      requestAnimationFrame(animate);
+    }
+
+    function resolveSpinResult(winNum) {
+      const color = getNumberColor(winNum);
+      const isEven = winNum !== 0 && winNum % 2 === 0;
+      const isOdd = winNum !== 0 && winNum % 2 !== 0;
+      const isLow = winNum >= 1 && winNum <= 18;
+      const isHigh = winNum >= 19 && winNum <= 36;
+      
+      let col = null;
+      if (winNum > 0) {
+        if (winNum % 3 === 1) col = 1;
+        else if (winNum % 3 === 2) col = 2;
+        else if (winNum % 3 === 0) col = 3;
+      }
+
+      let dozen = null;
+      if (winNum >= 1 && winNum <= 12) dozen = 1;
+      else if (winNum >= 13 && winNum <= 24) dozen = 2;
+      else if (winNum >= 25 && winNum <= 36) dozen = 3;
+
+      let anyPlayerWon = false;
+      const summaryList = [];
+
+      players.forEach(player => {
+        let totalWinPayout = 0;
+        let totalBetAmount = getPlayerTotalBet(player);
+        const currentBetsSnapshot = [];
+
+        player.bets.forEach((betAmount, betKey) => {
+          const [type, value] = betKey.split('_');
+          let singlePayout = 0;
+
+          if (type === 'number') {
+            if (parseInt(value, 10) === winNum) singlePayout = betAmount * 36;
+          } else if (type === 'color') {
+            if (value === color) singlePayout = betAmount * 2;
+          } else if (type === 'evenodd') {
+            if ((value === 'even' && isEven) || (value === 'odd' && isOdd)) singlePayout = betAmount * 2;
+          } else if (type === 'lowhigh') {
+            if ((value === 'low' && isLow) || (value === 'high' && isHigh)) singlePayout = betAmount * 2;
+          } else if (type === 'dozen') {
+            if (parseInt(value, 10) === dozen) singlePayout = betAmount * 3;
+          } else if (type === 'col') {
+            if (parseInt(value, 10) === col) singlePayout = betAmount * 3;
+          }
+
+          totalWinPayout += singlePayout;
+          currentBetsSnapshot.push({
+            key: betKey,
+            amount: betAmount,
+            payout: singlePayout
+          });
+        });
+
+        player.balance += totalWinPayout;
+        const netProfit = totalWinPayout - totalBetAmount;
+        if (totalWinPayout > 0) anyPlayerWon = true;
+
+        /* Store round history record */
+        if (!player.roundHistory) player.roundHistory = [];
+        player.roundHistory.unshift({
+          timestamp: Date.now(),
+          winNum,
+          winColor: color,
+          totalBet: totalBetAmount,
+          payout: totalWinPayout,
+          netProfit,
+          balanceAfter: player.balance,
+          bets: currentBetsSnapshot
+        });
+        if (player.roundHistory.length > 10) player.roundHistory.pop();
+
+        const initBal = player.initialBalance || 1000;
+        const currentBal = player.balance;
+        const profile = player.profileRef || UNIQUE_CHARACTERS.cautious[0];
+
+        if (currentBal <= 0) {
+          player.mood = 'bankrupt';
+          player.speech = profile.speechBankrupt || '全財産消滅…退場だ…トホホ💸';
+        } else if (netProfit >= 80 || currentBal >= initBal * 1.5) {
+          player.mood = 'ecstatic';
+          player.speech = profile.speechEcstatic;
+        } else if (netProfit > 0) {
+          player.mood = 'happy';
+          player.speech = profile.speechWin;
+        } else if (currentBal <= 150) {
+          player.mood = 'panicked';
+          player.speech = profile.speechPanicked;
+        } else if (currentBal < initBal * 0.6) {
+          player.mood = 'worried';
+          player.speech = profile.speechLose;
+        } else {
+          player.mood = 'neutral';
+          player.speech = totalBetAmount > 0 ? profile.speechLose : '静観中…';
+        }
+
+        summaryList.push({
+          player,
+          betAmount: totalBetAmount,
+          payout: totalWinPayout,
+          netProfit
+        });
+
+        player.bets.clear();
+      });
+
+      addHistory(winNum, color);
+      showResultOverlay(winNum, color);
+
+      document.getElementById('spin-indicator-dot').className = "w-2.5 h-2.5 rounded-full bg-emerald-500";
+      document.getElementById('spin-status-text').textContent = `当選番号: ${winNum} (${color.toUpperCase()})`;
+
+      if (anyPlayerWon) {
+        playWinSound();
+      }
+
+      // Decrement spin count if in spins mode
+      if (gameRuleType === 'spins') {
+        remainingSpins = Math.max(0, remainingSpins - 1);
+        updateModeDisplayHeader();
+        if (remainingSpins === 0) {
+          setTimeout(() => {
+            triggerGameEndSettlement("規定スピン数（最終ラウンド）が終了しました！");
+          }, 1200);
+        }
+      }
+
+      if (!isSpectatorAutoPlay) {
+        renderRoundSummaryModal(winNum, color, summaryList);
+      } else {
+        scheduleSpectatorNextSpin();
+      }
+
+      refreshAllChipBadges();
+      renderPlayersList();
+      updateRecommendedBetGuide();
+
+      const btnSpin = document.getElementById('btn-spin');
+      const btnClear = document.getElementById('btn-clear');
+      const btnDouble = document.getElementById('btn-double');
+      const btnAddPlayer = document.getElementById('btn-open-add-player');
+      if (btnSpin) btnSpin.disabled = false;
+      if (btnClear) btnClear.disabled = false;
+      if (btnDouble) btnDouble.disabled = false;
+      if (btnAddPlayer) btnAddPlayer.disabled = players.length >= 4;
+    }
+
+    function renderRoundSummaryModal(winNum, color, summaryList) {
+      const modal = document.getElementById('round-summary-modal');
+      const winBadge = document.getElementById('summary-winning-number-badge');
+      const numSpan = document.getElementById('summary-win-num');
+      const colSpan = document.getElementById('summary-win-color');
+      const listContainer = document.getElementById('summary-players-list');
+
+      numSpan.textContent = winNum;
+      colSpan.textContent = color.toUpperCase();
+
+      if (color === 'red') {
+        winBadge.className = "mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-black bg-red-600 border border-red-400";
+      } else if (color === 'green') {
+        winBadge.className = "mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-black bg-emerald-600 border border-emerald-400";
+      } else {
+        winBadge.className = "mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-sm font-black bg-neutral-800 border border-neutral-600";
+      }
+
+      listContainer.innerHTML = '';
+
+      // Filter out bankrupt human players who have $0 balance and placed no bet this round
+      const visibleList = summaryList.filter(item => {
+        const isBankruptHuman = !item.player.isCpu && item.player.balance <= 0 && item.betAmount === 0;
+        return !isBankruptHuman;
+      });
+
+      if (visibleList.length === 0) {
+        listContainer.innerHTML = `
+          <div class="py-6 text-center text-gray-400 text-xs">
+            有効な参加プレイヤーがいません。
+          </div>
+        `;
+      } else {
+        visibleList.forEach(item => {
+          const row = document.createElement('div');
+          row.className = "py-2 flex items-center justify-between";
+
+          const isWinner = item.netProfit > 0;
+          const profitSign = item.netProfit > 0 ? `+$${item.netProfit}` : (item.netProfit < 0 ? `-$${Math.abs(item.netProfit)}` : '$0');
+          const profitClass = isWinner ? 'text-emerald-400 font-black' : (item.netProfit < 0 ? 'text-rose-400' : 'text-gray-400');
+
+          const moodEmoji = {
+            ecstatic: '🤑',
+            happy: '😄',
+            neutral: '😐',
+            worried: '😰',
+            panicked: '😱',
+            bankrupt: '💀'
+          }[item.player.mood] || '😐';
+
+          row.innerHTML = `
+            <div class="flex items-center gap-2 min-w-0 flex-1 pr-2">
+              <span class="text-xl flex-shrink-0">${moodEmoji}</span>
+              <div class="truncate">
+                <span class="font-bold text-xs sm:text-sm text-white">${item.player.name}</span>
+                ${item.player.isCpu ? '<span class="text-[9px] text-purple-300 ml-1">(CPU)</span>' : ''}
+                <div class="text-[10px] text-gray-400">賭け: $${item.betAmount} / 払戻: $${item.payout}</div>
+                <div class="text-[10.5px] italic text-yellow-200/80 truncate">"${item.player.speech}"</div>
+              </div>
+            </div>
+            <div class="text-right flex-shrink-0">
+              <span class="text-xs sm:text-sm ${profitClass}">${profitSign}</span>
+              <span class="text-[9px] text-gray-400 block">${item.player.balance <= 0 ? '<span class="text-red-400 font-bold">破産</span>' : `残高: $${item.player.balance.toLocaleString()}`}</span>
+            </div>
+          `;
+          listContainer.appendChild(row);
+        });
+      }
+
+      modal.classList.remove('hidden');
+      document.getElementById('btn-close-summary').onclick = () => {
+        document.getElementById('round-summary-modal').classList.add('hidden');
+        startNewBettingRound();
+      };
+    }
+
+    function setupCashoutModal() {
+      const btnCashout = document.getElementById('btn-cashout');
+      const modal = document.getElementById('cashout-modal');
+      const content = document.getElementById('cashout-content');
+      const btnRestart = document.getElementById('btn-cashout-restart');
+      const btnContinue = document.getElementById('btn-cashout-continue');
+
+      function openSettlementModal(forcedReason = null) {
+        if (isSpinning) {
+          showToast("清算不可", "ホイール回転中は清算できません", "⚠️");
+          return;
+        }
+
+        const subtitle = document.getElementById('cashout-modal-subtitle');
+        if (forcedReason) {
+          subtitle.textContent = forcedReason;
+        } else {
+          subtitle.textContent = gameRuleType === 'endless' ? '自主精算による退店リザルト' : '規定条件達成による最終順位表';
+        }
+
+        // Rank all players by final balance descending
+        const sortedPlayers = [...players].sort((a, b) => b.balance - a.balance);
+
+        const rankMedals = ['🥇 1位', '🥈 2位', '🥉 3位', '4位'];
+        const rankBorderStyles = [
+          'border-yellow-400/80 bg-yellow-500/10 ring-1 ring-yellow-400/50',
+          'border-slate-300/60 bg-slate-400/10',
+          'border-amber-700/60 bg-amber-800/10',
+          'border-white/10 bg-black/40'
+        ];
+
+        let rankingListHtml = sortedPlayers.map((player, rankIdx) => {
+          const pColor = PLAYER_COLORS[player.colorIndex];
+          const profit = player.balance - player.initialBalance;
+          const profitSign = profit >= 0 ? `+$${profit.toLocaleString()}` : `-$${Math.abs(profit).toLocaleString()}`;
+          const profitColor = profit > 0 ? 'text-emerald-400 font-black' : (profit < 0 ? 'text-rose-400 font-bold' : 'text-gray-300');
+          const isBankrupt = player.balance <= 0;
+
+          // Extract winning hits from player's round history
+          const hitBets = [];
+          if (player.roundHistory) {
+            player.roundHistory.forEach(rec => {
+              rec.bets.forEach(b => {
+                if (b.payout > 0) {
+                  const info = formatBetLabel(b.key);
+                  hitBets.push({
+                    roundWinNum: rec.winNum,
+                    tag: info.tag,
+                    label: info.label,
+                    color: info.color,
+                    payout: b.payout,
+                    betAmount: b.amount
+                  });
+                }
+              });
+            });
+          }
+
+          let hitDetailsHtml = '';
+          if (hitBets.length === 0) {
+            hitDetailsHtml = `<span class="text-[10px] text-gray-500 italic">的中記録なし</span>`;
+          } else {
+            const hitBadges = hitBets.map(h => {
+              let tagBg = 'bg-slate-700 text-gray-200 border-gray-500';
+              if (h.color === 'red') tagBg = 'bg-red-700 text-white border-red-500';
+              else if (h.color === 'black') tagBg = 'bg-neutral-800 text-white border-neutral-600';
+              else if (h.color === 'green') tagBg = 'bg-emerald-700 text-white border-emerald-500';
+              else if (h.color === 'blue') tagBg = 'bg-blue-800 text-blue-200 border-blue-500';
+              else if (h.color === 'amber') tagBg = 'bg-amber-800 text-amber-200 border-amber-500';
+              else if (h.color === 'purple') tagBg = 'bg-purple-800 text-purple-200 border-purple-500';
+
+              return `
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold border ${tagBg} shadow-xs whitespace-nowrap" title="出目${h.roundWinNum}: 賭け$${h.betAmount} → 払戻$${h.payout}">
+                  <span>${h.tag}</span>
+                  <span class="text-yellow-300 font-mono">+$${h.payout}</span>
+                </span>
+              `;
+            }).join('');
+
+            hitDetailsHtml = `
+              <details class="cursor-pointer group">
+                <summary class="text-[10px] text-yellow-400/90 font-bold hover:text-yellow-300 select-none flex items-center gap-1">
+                  <span>🎯 的中内訳 (${hitBets.length}回)</span>
+                  <span class="text-[8px] text-gray-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div class="mt-1.5 flex flex-wrap gap-1 p-1.5 rounded-lg bg-black/60 border border-white/5 max-h-20 overflow-y-auto custom-scroll">
+                  ${hitBadges}
+                </div>
+              </details>
+            `;
+          }
+
+          return `
+            <div class="p-3 rounded-xl border ${rankBorderStyles[rankIdx] || rankBorderStyles[3]} flex flex-col gap-2">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-sm font-black text-yellow-300 flex-shrink-0">${rankMedals[rankIdx]}</span>
+                  <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background-color: ${pColor.bg}"></span>
+                  <div class="truncate">
+                    <span class="font-bold text-xs text-white truncate">${player.name}</span>
+                    <span class="text-[9px] text-gray-400 ml-1 truncate">(${player.title || (player.isCpu ? 'CPU' : 'プレイヤー')})</span>
+                  </div>
+                </div>
+                <div class="text-right flex-shrink-0">
+                  <div class="font-casino text-sm font-black ${isBankrupt ? 'text-red-400 line-through' : 'text-yellow-300'}">$${player.balance.toLocaleString()}</div>
+                  <div class="text-[10px] ${profitColor}">${profitSign}</div>
+                </div>
+              </div>
+
+              <!-- Collapsible Hit Bets Detail Section -->
+              <div class="pt-1.5 border-t border-white/5">
+                ${hitDetailsHtml}
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        // Human player highlights if available
+        const human = players.find(p => !p.isCpu);
+        let humanSummaryBanner = '';
+        if (human) {
+          const hProfit = human.balance - human.initialBalance;
+          const hRank = sortedPlayers.findIndex(p => p.id === human.id) + 1;
+          let titleRank = 'カジノの良き客';
+          let evalDesc = '無難にテーブルを楽しんでフィニッシュしました。';
+          if (human.balance >= 3000) {
+            titleRank = '👑 伝説のハイローラー';
+            evalDesc = 'カジノの金庫を揺るがす圧倒的大勝利！';
+          } else if (human.balance >= 1500) {
+            titleRank = '🎩 スマートな勝負師';
+            evalDesc = '冷静な資金管理と勝負勘で見事なプラス利確を達成！';
+          } else if (human.balance <= 0) {
+            titleRank = '💸 潔き散財王';
+            evalDesc = '全財産をフェルトに捧げました。スリルはプライスレス！';
+          } else if (hProfit < 0) {
+            titleRank = '🛡️ 賢明なる損切り者';
+            evalDesc = '深追いせず手元に資金を残して終了。次の勝負に繋がります。';
+          }
+
+          humanSummaryBanner = `
+            <div class="p-3 rounded-xl bg-gradient-to-r from-yellow-950/40 via-amber-900/30 to-black/60 border border-yellow-500/40 text-center mb-3">
+              <div class="flex items-center justify-center gap-2 text-xs">
+                <span class="text-gray-400">あなたの順位:</span>
+                <span class="text-sm font-black text-yellow-300">${hRank}位 / ${sortedPlayers.length}人中</span>
+                <span class="text-[10px] px-2 py-0.5 rounded-full bg-yellow-500/20 text-yellow-300 border border-yellow-500/40 font-bold">${titleRank}</span>
+              </div>
+              <p class="text-[11px] text-gray-300 mt-1">${evalDesc}</p>
+            </div>
+          `;
+        }
+
+        content.innerHTML = `
+          ${humanSummaryBanner}
+          <div class="space-y-2">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">👑 最終成績ランキング</div>
+            ${rankingListHtml}
+          </div>
+        `;
+
+        // In fixed spin or timer mode, hide "Continue" button as game has reached formal end
+        if (gameRuleType !== 'endless' && forcedReason) {
+          btnContinue.classList.add('hidden');
+          btnRestart.className = "col-span-2 py-2.5 px-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-bold text-xs shadow-md";
+        } else {
+          btnContinue.classList.remove('hidden');
+          btnRestart.className = "py-2 px-3 rounded-xl bg-gradient-to-r from-yellow-500 to-amber-500 hover:from-yellow-400 hover:to-amber-400 text-slate-950 font-bold text-xs shadow-md";
+        }
+
+        modal.classList.remove('hidden');
+        playWinSound();
+      }
+
+      btnCashout.addEventListener('click', () => {
+        openSettlementModal();
+      });
+
+      // Expose to window/global for triggerGameEndSettlement
+      window.openSettlementModal = openSettlementModal;
+
+      btnContinue.addEventListener('click', () => {
+        modal.classList.add('hidden');
+      });
+
+      btnRestart.addEventListener('click', () => {
+        modal.classList.add('hidden');
+        players.forEach(p => {
+          p.balance = 1000;
+          p.initialBalance = 1000;
+          p.mood = 'neutral';
+          p.bets.clear();
+          p.roundHistory = [];
+          p.speech = p.isCpu ? (p.profileRef ? p.profileRef.greeting : 'よろしく！') : 'さあ勝負だ！ルーレット回すぞ！';
+        });
+        resetGameModeCounters();
+        refreshAllChipBadges();
+        startNewBettingRound();
+        showToast("リセット完了", "全員に新しい軍資金 $1,000 が支給され、ラウンドが初期化されました！", "💵");
+      });
+    }
+
+    function triggerGameEndSettlement(reason) {
+      if (gameTimerInterval) clearInterval(gameTimerInterval);
+      if (isSpectatorAutoPlay) toggleSpectatorAutoPlay(false);
+
+      showToast("ゲーム終了", reason, "🔔");
+      document.getElementById('round-summary-modal').classList.add('hidden');
+      if (window.openSettlementModal) {
+        window.openSettlementModal(reason);
+      }
+    }
+
+    function updateModeDisplayHeader() {
+      const iconSpan = document.getElementById('game-mode-icon');
+      const textSpan = document.getElementById('game-mode-display-text');
+      const badge = document.getElementById('game-mode-counter-badge');
+      const btnCashout = document.getElementById('btn-cashout');
+
+      if (gameRuleType === 'spins') {
+        iconSpan.textContent = '🎯';
+        textSpan.textContent = `モード: ${PRESET_CONFIGS[gamePreset].label}`;
+        badge.textContent = `残 ${remainingSpins} 回`;
+        badge.className = remainingSpins <= 2 
+          ? "ml-1 px-1.5 py-0.5 rounded bg-rose-600 text-white font-black text-[10px] animate-pulse" 
+          : "ml-1 px-1.5 py-0.5 rounded bg-amber-500 text-slate-950 font-black text-[10px]";
+        if (btnCashout) btnCashout.classList.add('hidden'); // Hide cashout in spin mode
+      } else if (gameRuleType === 'time') {
+        iconSpan.textContent = '⏱️';
+        textSpan.textContent = `モード: ${PRESET_CONFIGS[gamePreset].label}`;
+        const m = Math.floor(remainingSeconds / 60);
+        const s = (remainingSeconds % 60).toString().padStart(2, '0');
+        badge.textContent = `${m}:${s}`;
+        badge.className = remainingSeconds <= 60 
+          ? "ml-1 px-1.5 py-0.5 rounded bg-rose-600 text-white font-black text-[10px] animate-pulse" 
+          : "ml-1 px-1.5 py-0.5 rounded bg-blue-500 text-white font-black text-[10px]";
+        if (btnCashout) btnCashout.classList.add('hidden'); // Hide cashout in timer mode
+      } else {
+        iconSpan.textContent = '♾️';
+        textSpan.textContent = '無制限モード';
+        badge.textContent = 'フリー';
+        badge.className = "ml-1 px-1.5 py-0.5 rounded bg-slate-700 text-gray-300 font-bold text-[10px]";
+        if (btnCashout) btnCashout.classList.remove('hidden'); // Show cashout only in endless mode
+      }
+    }
+
+    function resetGameModeCounters() {
+      const cfg = PRESET_CONFIGS[gamePreset];
+      remainingSpins = cfg.spins;
+      remainingSeconds = cfg.seconds;
+
+      if (gameTimerInterval) clearInterval(gameTimerInterval);
+
+      if (gameRuleType === 'time') {
+        gameTimerInterval = setInterval(() => {
+          if (!isSpinning) {
+            remainingSeconds--;
+            updateModeDisplayHeader();
+            if (remainingSeconds <= 0) {
+              clearInterval(gameTimerInterval);
+              triggerGameEndSettlement("制限時間が終了しました！");
+            }
+          }
+        }, 1000);
+      }
+
+      updateModeDisplayHeader();
+      updateRecommendedBetGuide();
+    }
+
+    function setupGameModeModal() {
+      const openBtn = document.getElementById('btn-open-mode-settings');
+      const modal = document.getElementById('mode-settings-modal');
+      const closeBtn = document.getElementById('mode-modal-close-btn');
+      const applyBtn = document.getElementById('btn-apply-mode-settings');
+
+      const btnSpins = document.getElementById('rule-type-spins');
+      const btnTime = document.getElementById('rule-type-time');
+      const btnEndless = document.getElementById('rule-type-endless');
+
+      const presetBtns = document.querySelectorAll('.preset-choice-btn');
+      const descQuick = document.getElementById('desc-quick');
+      const descStandard = document.getElementById('desc-standard');
+      const descLong = document.getElementById('desc-long');
+      const adviceText = document.getElementById('mode-advice-text');
+
+      let selectedType = gameRuleType;
+      let selectedPreset = gamePreset;
+
+      function refreshModalUI() {
+        // Types
+        [btnSpins, btnTime, btnEndless].forEach(b => {
+          b.className = "py-2 px-2 rounded-xl border border-white/10 bg-black/40 text-gray-300 font-bold text-center";
+        });
+        if (selectedType === 'spins') {
+          btnSpins.className = "py-2 px-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center ring-1 ring-yellow-400";
+          descQuick.textContent = '5 スピン';
+          descStandard.textContent = '10 スピン';
+          descLong.textContent = '20 スピン';
+        } else if (selectedType === 'time') {
+          btnTime.className = "py-2 px-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center ring-1 ring-yellow-400";
+          descQuick.textContent = '3 分間';
+          descStandard.textContent = '7 分間';
+          descLong.textContent = '15 分間';
+        } else {
+          btnEndless.className = "py-2 px-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-yellow-300 font-bold text-center ring-1 ring-yellow-400";
+          descQuick.textContent = '自由';
+          descStandard.textContent = '自由';
+          descLong.textContent = '自由';
+        }
+
+        // Presets
+        presetBtns.forEach(b => {
+          if (b.dataset.preset === selectedPreset) {
+            b.className = "preset-choice-btn p-2 rounded-xl border-2 border-yellow-400 bg-yellow-500/20 text-center ring-1 ring-yellow-400";
+          } else {
+            b.className = "preset-choice-btn p-2 rounded-xl border border-white/10 bg-black/40 text-center hover:border-white/30";
+          }
+        });
+
+        adviceText.textContent = PRESET_CONFIGS[selectedPreset].advice;
+      }
+
+      openBtn.addEventListener('click', () => {
+        selectedType = gameRuleType;
+        selectedPreset = gamePreset;
+        refreshModalUI();
+        modal.classList.remove('hidden');
+      });
+
+      closeBtn.addEventListener('click', () => modal.classList.add('hidden'));
+
+      btnSpins.addEventListener('click', () => { selectedType = 'spins'; refreshModalUI(); });
+      btnTime.addEventListener('click', () => { selectedType = 'time'; refreshModalUI(); });
+      btnEndless.addEventListener('click', () => { selectedType = 'endless'; refreshModalUI(); });
+
+      presetBtns.forEach(b => {
+        b.addEventListener('click', () => {
+          selectedPreset = b.dataset.preset;
+          refreshModalUI();
+        });
+      });
+
+      applyBtn.addEventListener('click', () => {
+        gameRuleType = selectedType;
+        gamePreset = selectedPreset;
+        resetGameModeCounters();
+        modal.classList.add('hidden');
+        showToast("モード更新", `${PRESET_CONFIGS[gamePreset].label}モード（${gameRuleType === 'spins' ? 'スピン制' : (gameRuleType === 'time' ? '時間制' : '無制限')}）を開始しました！`, "🎯");
+      });
+    }
+
+    function setupSpectatorControls() {
+      const toggleBtn = document.getElementById('btn-spectator-toggle');
+      const presetBattleBtn = document.getElementById('btn-cpu-battle-preset');
+
+      toggleBtn.addEventListener('click', () => {
+        toggleSpectatorAutoPlay(!isSpectatorAutoPlay);
+      });
+
+      presetBattleBtn.addEventListener('click', () => {
+        setupFourFactionCpuBattle();
+      });
+    }
+
+    function toggleSpectatorAutoPlay(active) {
+      isSpectatorAutoPlay = active;
+      const toggleBtn = document.getElementById('btn-spectator-toggle');
+      const textSpan = document.getElementById('spectator-text');
+      const iconSpan = document.getElementById('spectator-icon');
+
+      if (isSpectatorAutoPlay) {
+        toggleBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition bg-purple-600 text-white shadow-lg animate-pulse";
+        textSpan.textContent = "観戦オート: ON";
+        iconSpan.textContent = "🎬";
+        showToast("観戦モードON", "CPUたちの勝負をのんびり眺めるオート観戦を開始します", "🍿");
+
+        document.getElementById('round-summary-modal').classList.add('hidden');
+
+        if (!isSpinning) {
+          executeRoundSpin();
+        }
+      } else {
+        if (spectatorTimer) {
+          clearTimeout(spectatorTimer);
+          spectatorTimer = null;
+        }
+        toggleBtn.className = "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition text-gray-300 hover:text-white";
+        textSpan.textContent = "観戦オート: OFF";
+        iconSpan.textContent = "👁️";
+        showToast("観戦モードOFF", "手動プレイに戻りました", "🕹️");
+      }
+    }
+
+    function scheduleSpectatorNextSpin() {
+      if (!isSpectatorAutoPlay) return;
+
+      const speedVal = document.getElementById('spectator-speed').value;
+      const delay = spectatorSpeedDelays[speedVal] || 3500;
+
+      if (spectatorTimer) clearTimeout(spectatorTimer);
+
+      spectatorTimer = setTimeout(() => {
+        if (!isSpectatorAutoPlay) return;
+
+        players.forEach(p => {
+          if (p.isCpu && p.balance <= 0) {
+            p.balance = 1000;
+            p.initialBalance = 1000;
+            p.mood = 'neutral';
+            p.speech = '奇跡の再融資！観客の前で復活だ！';
+          }
+        });
+
+        startNewBettingRound();
+        executeRoundSpin();
+      }, delay);
+    }
+
+    function setupFourFactionCpuBattle() {
+      if (isSpinning) {
+        showToast("操作不可", "ホイール回転中はセットアップできません", "⚠️");
+        return;
+      }
+
+      // If auto-play was running, pause it first
+      if (isSpectatorAutoPlay) {
+        toggleSpectatorAutoPlay(false);
+      }
+
+      players = [
+        {
+          id: 101,
+          name: UNIQUE_CHARACTERS.cautious[0].name,
+          title: UNIQUE_CHARACTERS.cautious[0].title,
+          isCpu: true,
+          personality: 'cautious',
+          profileRef: UNIQUE_CHARACTERS.cautious[0],
+          colorIndex: 0,
+          balance: 1000,
+          initialBalance: 1000,
+          mood: 'neutral',
+          speech: UNIQUE_CHARACTERS.cautious[0].greeting,
+          bets: new Map(),
+          roundHistory: []
+        },
+        {
+          id: 102,
+          name: UNIQUE_CHARACTERS.highroller[0].name,
+          title: UNIQUE_CHARACTERS.highroller[0].title,
+          isCpu: true,
+          personality: 'highroller',
+          profileRef: UNIQUE_CHARACTERS.highroller[0],
+          colorIndex: 1,
+          balance: 1000,
+          initialBalance: 1000,
+          mood: 'neutral',
+          speech: UNIQUE_CHARACTERS.highroller[0].greeting,
+          bets: new Map(),
+          roundHistory: []
+        },
+        {
+          id: 103,
+          name: UNIQUE_CHARACTERS.balanced[0].name,
+          title: UNIQUE_CHARACTERS.balanced[0].title,
+          isCpu: true,
+          personality: 'balanced',
+          profileRef: UNIQUE_CHARACTERS.balanced[0],
+          colorIndex: 2,
+          balance: 1000,
+          initialBalance: 1000,
+          mood: 'neutral',
+          speech: UNIQUE_CHARACTERS.balanced[0].greeting,
+          bets: new Map(),
+          roundHistory: []
+        },
+        {
+          id: 104,
+          name: UNIQUE_CHARACTERS.wildcard[0].name,
+          title: UNIQUE_CHARACTERS.wildcard[0].title,
+          isCpu: true,
+          personality: 'wildcard',
+          profileRef: UNIQUE_CHARACTERS.wildcard[0],
+          colorIndex: 3,
+          balance: 1000,
+          initialBalance: 1000,
+          mood: 'neutral',
+          speech: UNIQUE_CHARACTERS.wildcard[0].greeting,
+          bets: new Map(),
+          roundHistory: []
+        }
+      ];
+
+      activePlayerId = null;
+      startNewBettingRound();
+
+      // Open Game Mode Settings Modal and wait for user's rule selection
+      isPendingCpuBattleStart = true;
+      showToast("対決セットアップ", "4大派閥が着席しました。対戦ルールを選択してください！", "⚔️");
+
+      const modeBtn = document.getElementById('btn-open-mode-settings');
+      if (modeBtn) {
+        modeBtn.click();
+      }
+    }
+
+    function showResultOverlay(winNum, color) {
+      const overlay = document.getElementById('result-overlay');
+      const badge = document.getElementById('result-badge');
+      const numSpan = document.getElementById('result-number');
+      const textSpan = document.getElementById('result-text');
+
+      numSpan.textContent = winNum;
+      textSpan.textContent = color.toUpperCase();
+
+      if (color === 'green') {
+        badge.className = "w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-2xl border-4 border-emerald-300 bg-emerald-700 animate-bounce";
+      } else if (color === 'red') {
+        badge.className = "w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-2xl border-4 border-red-300 bg-red-700 animate-bounce";
+      } else {
+        badge.className = "w-24 h-24 rounded-full flex flex-col items-center justify-center shadow-2xl border-4 border-gray-400 bg-neutral-900 animate-bounce";
+      }
+
+      overlay.classList.remove('opacity-0', 'scale-50');
+      overlay.classList.add('opacity-100', 'scale-100');
+    }
+
+    function hideResultOverlay() {
+      const overlay = document.getElementById('result-overlay');
+      overlay.classList.remove('opacity-100', 'scale-100');
+      overlay.classList.add('opacity-0', 'scale-50');
+    }
+
+    function addHistory(winNum, color) {
+      historyList.unshift({ num: winNum, color });
+      if (historyList.length > 10) historyList.pop();
+
+      const container = document.getElementById('history-container');
+      container.innerHTML = '';
+      historyList.forEach(item => {
+        const badge = document.createElement('div');
+        badge.className = `w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold text-white border border-white/20 shadow-xs flex-shrink-0 ${
+          item.color === 'green' ? 'bg-emerald-600' : (item.color === 'red' ? 'bg-red-600' : 'bg-neutral-800')
+        }`;
+        badge.textContent = item.num;
+        container.appendChild(badge);
+      });
+    }
+
+    window.onload = function() {
+      renderNumbersGrid();
+      setupBetInteractions();
+      setupPlayerModal();
+      setupCashoutModal();
+      setupGameModeModal();
+      setupSpectatorControls();
+      renderPlayersList();
+      resetGameModeCounters();
+
+      function resizeCanvas() {
+        const container = canvas.parentElement;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const displaySize = Math.min(rect.width || 360, 420);
+        
+        const dpr = window.devicePixelRatio || 1;
+        canvas.width = 400 * dpr;
+        canvas.height = 400 * dpr;
+        
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        canvas.style.width = `${displaySize}px`;
+        canvas.style.height = `${displaySize}px`;
+        
+        drawWheel();
+      }
+
+      window.addEventListener('resize', resizeCanvas);
+      setTimeout(resizeCanvas, 50);
+
+      // Start the very first betting round with instant CPU bets
+      startNewBettingRound();
+
+      requestAnimationFrame(animate);
+    };
+  </script>
+</body>
+</html>
