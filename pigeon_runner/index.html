@@ -1,0 +1,2141 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RFC 1149: Carrier Pigeon Packet Delivery - 完全踏破版</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;600;700&display=swap');
+    
+    .pixel-font {
+      font-family: 'Press Start 2P', monospace;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* レトロアーケード風スキャンライン */
+    .scanlines {
+      position: relative;
+    }
+    .scanlines::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.12) 50%);
+      background-size: 100% 4px;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0.55;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in {
+      animation: fadeIn 0.25s ease-out forwards;
+    }
+
+    @keyframes bannerPop {
+      0% { transform: scale(0.7); opacity: 0; }
+      50% { transform: scale(1.05); opacity: 1; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-banner {
+      animation: bannerPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+  </style>
+</head>
+<body class="bg-neutral-100 text-neutral-800 min-h-screen flex flex-col items-center p-2 sm:p-4">
+
+  <!-- メインコンテナ -->
+  <div class="w-full max-w-4xl flex flex-col items-center">
+    
+    <!-- ヘッダー -->
+    <header class="w-full text-center mb-2.5">
+      <div id="rfcBadge" class="inline-flex items-center gap-2 px-3 py-1 bg-neutral-200 hover:bg-neutral-300 active:scale-95 border border-neutral-300 rounded-full text-xs font-mono text-neutral-700 mb-1.5 shadow-sm cursor-pointer select-none transition-all">
+        <span id="rfcBadgeDot" class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+        <span>RFC 1149: Avian Carrier Standard</span>
+      </div>
+      <h1 class="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-neutral-900">
+        世界断線の日：最後のパケット伝送
+      </h1>
+      <p class="text-xs sm:text-sm text-neutral-600 mt-0.5 max-w-xl mx-auto">
+        全幹線切断。BGP誤爆。残された通信手段は、1羽の伝書鳩による物理IPパケット輸送のみ。
+      </p>
+    </header>
+
+    <!-- HUD（スピード・アイテム状態・スコア・ポーズ） -->
+    <div class="w-full flex justify-between items-center mb-1.5 px-1 text-xs md:text-sm font-mono pixel-font text-neutral-600">
+      <div class="flex items-center gap-2 flex-wrap">
+        <span class="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span id="speedDisplay" class="text-neutral-800 font-bold">SPD 3.8</span>
+        <!-- SSLシールド状態 -->
+        <span id="shieldIndicator" class="hidden px-2 py-0.5 bg-sky-100 text-sky-700 rounded border border-sky-300 text-[10px] animate-pulse">🔒 SSL</span>
+        <span id="shieldStandbyIndicator" class="hidden px-2 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-300 text-[10px] font-mono">🔒 [STANDBY]</span>
+        <!-- QoS無敵タイマー表示 -->
+        <div id="qosIndicator" class="hidden items-center gap-1.5 px-2 py-0.5 bg-amber-100 text-amber-800 rounded border border-amber-300 text-[10px]">
+          <span>🌽 QoS 2X</span>
+          <div class="w-12 h-2 bg-amber-200 rounded-full overflow-hidden border border-amber-300">
+            <div id="qosBarFill" class="h-full bg-amber-500 transition-all duration-75"></div>
+          </div>
+        </div>
+        <!-- 神モード表示 -->
+        <span id="godModeIndicator" class="hidden px-2 py-0.5 bg-rose-600 text-white font-bold rounded text-[10px] animate-bounce">🛡️ GOD MODE</span>
+        <span id="debugUsedBadge" class="hidden px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded text-[9px] font-sans font-bold">⚠️ 検証モード (記録対象外)</span>
+      </div>
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- ポーズボタン (Pキー対応) -->
+        <button id="pauseBtn" class="px-2.5 py-1 bg-neutral-200 hover:bg-neutral-300 active:bg-neutral-400 rounded text-[10px] font-mono text-neutral-700 flex items-center gap-1 transition-colors cursor-pointer select-none" title="一時停止 [ P ]">
+          <span>⏸️</span> <span class="hidden sm:inline">ポーズ</span>
+        </button>
+        <button id="openRankBtn" class="px-2.5 py-1 bg-neutral-200 hover:bg-neutral-300 active:bg-neutral-400 rounded text-[10px] font-mono text-neutral-700 flex items-center gap-1 transition-colors cursor-pointer select-none">
+          🏆 <span>記録</span>
+        </button>
+        <span class="hidden sm:inline">HI <span id="hiScoreText">00000</span></span>
+        <span class="text-neutral-800 font-bold"><span id="scoreText">00000</span></span>
+      </div>
+    </div>
+
+    <!-- ゲーム画面キャンバス -->
+    <div id="gameWrapper" class="relative w-full aspect-[21/9] min-h-[220px] max-h-[350px] bg-white border-2 border-neutral-300 rounded-xl overflow-hidden shadow-inner scanlines cursor-pointer">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- ゲーム画面内・常時表示ステージ進捗バー -->
+      <div id="inGameProgressContainer" class="absolute top-2 left-2 right-2 z-15 pointer-events-none flex flex-col gap-1 bg-neutral-900/60 backdrop-blur-[2px] px-3 py-1.5 rounded-lg border border-white/20 shadow select-none">
+        <div class="flex justify-between items-center text-[10px] md:text-xs font-mono">
+          <div class="flex items-center gap-1.5">
+            <span id="inGameStageBadge" class="px-1.5 py-0.2 bg-emerald-500 text-neutral-950 font-bold rounded text-[9px]">STAGE 1</span>
+            <span id="inGameStageTitle" class="text-white font-bold truncate max-w-[160px] sm:max-w-none">Home LAN (自宅ベランダ)</span>
+          </div>
+          <div class="text-neutral-300 text-[10px]">
+            中継所まで: <span id="inGameTimerText" class="text-emerald-400 font-bold">120s</span>
+          </div>
+        </div>
+        <!-- プログレストラックと移動する鳩アイコン -->
+        <div class="relative w-full h-2 bg-neutral-800/80 rounded-full overflow-hidden border border-white/10">
+          <div id="inGameProgressBar" class="h-full bg-emerald-400 transition-all duration-150" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- 被弾時フラッシュ -->
+      <div id="damageFlash" class="absolute inset-0 bg-rose-500/30 pointer-events-none opacity-0 transition-opacity duration-150 z-20"></div>
+
+      <!-- ステージ開始バナー演出 -->
+      <div id="stageBannerOverlay" class="hidden absolute inset-0 pointer-events-none z-25 flex items-center justify-center">
+        <div class="animate-banner px-6 py-3 bg-neutral-900/85 backdrop-blur-sm border-2 border-emerald-400 rounded-2xl text-center shadow-2xl space-y-1">
+          <div id="bannerStageTag" class="text-[10px] pixel-font text-emerald-400 font-bold tracking-wider">STAGE 1</div>
+          <div id="bannerStageTitle" class="text-xs sm:text-sm font-bold text-white font-mono">Home LAN (自宅ベランダ)</div>
+          <div class="text-[10px] font-mono text-neutral-300 tracking-widest pt-0.5">▶ SPEED NORMALIZED ◀</div>
+        </div>
+      </div>
+
+      <!-- ポーズ中オーバーレイ -->
+      <div id="pauseOverlay" class="hidden absolute inset-0 bg-neutral-900/50 backdrop-blur-[2px] z-30 flex items-center justify-center p-4 select-none">
+        <div class="pixel-font text-xs md:text-sm text-neutral-800 bg-white/95 px-6 py-5 rounded-2xl border-2 border-neutral-400 shadow-2xl text-center max-w-xs w-full space-y-3 animate-fade-in">
+          <div class="text-neutral-700 font-bold text-base flex items-center justify-center gap-2">
+            <span>⏸️</span> <span>一時停止中</span>
+          </div>
+          <p class="text-[11px] text-neutral-500 font-sans leading-relaxed">
+            パケット伝送を一時待機しています。<br>いつでも再開できます。
+          </p>
+          <div class="pt-1">
+            <button id="resumeGameBtn" class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-900 text-white font-bold rounded-xl text-xs shadow active:scale-95 transition-transform cursor-pointer flex items-center justify-center gap-2">
+              <span>再開する</span>
+              <span class="text-[10px] font-mono font-normal opacity-75">[ P ]</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ステージクリア（チェックポイント）モーダル -->
+      <div id="stageClearModal" class="hidden absolute inset-0 bg-neutral-900/40 backdrop-blur-[2px] z-30 flex items-center justify-center p-4">
+        <div class="pixel-font text-xs md:text-sm text-neutral-800 bg-white px-6 py-5 rounded-2xl border-2 border-neutral-400 shadow-2xl text-center max-w-sm w-full space-y-3 animate-fade-in">
+          <div class="text-emerald-600 font-bold text-sm flex items-center justify-center gap-2">
+            <span>🎉</span> <span>STAGE CLEAR!</span>
+          </div>
+          <p class="text-[11px] text-neutral-500 font-sans leading-relaxed">
+            中継局へ到達！伝書鳩が羽を休めています。<br>
+            <span class="text-emerald-700 font-bold">次の空域へ出撃すると速度が快適な初期値にリフレッシュされます。</span>
+          </p>
+          <div class="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-[10px] text-neutral-600 font-mono space-y-1 text-left">
+            <div>走破: <span id="clearedStageTitle" class="text-neutral-800 font-bold">Stage 1</span></div>
+            <div>次空域: <span id="nextStageTitle" class="text-emerald-700 font-bold">Stage 2</span></div>
+          </div>
+          <button id="nextStageBtn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold rounded-xl text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
+            <span>次のステージへ出撃！</span>
+            <span class="text-[10px] font-mono opacity-80">[ SPACE ]</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ゲームオーバー / スタート / クリア オーバーレイ -->
+      <div id="gameOverlay" class="absolute inset-0 flex flex-col items-center justify-center p-4 bg-neutral-900/20 backdrop-blur-[1px] z-20 transition-all select-none">
+        <!-- スタート画面 -->
+        <div id="startCard" class="pixel-font text-xs md:text-sm text-neutral-800 bg-white/95 px-6 py-5 rounded-2xl border-2 border-neutral-300 shadow-xl text-center max-w-sm space-y-3">
+          <div class="text-base font-bold text-neutral-900">RFC 1149 起動</div>
+          <p class="text-[11px] text-neutral-500 font-sans leading-relaxed">
+            スペース / 上キー / 画面タップで羽ばたき（2段ジャンプ可）<br>
+            下キーで急降下・しゃがみくぐり抜け！<br>
+            P キーで一時停止できます。
+          </p>
+          <button id="startBtn" class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-900 text-white font-bold rounded-xl text-xs shadow active:scale-95 transition-transform cursor-pointer">
+            パケット送信開始 [ SPACE ]
+          </button>
+        </div>
+
+        <!-- ゲームオーバー画面 -->
+        <div id="gameOverCard" class="hidden pixel-font text-xs md:text-sm text-neutral-800 bg-white/95 px-6 py-5 rounded-2xl border-2 border-rose-300 shadow-2xl text-center max-w-sm space-y-3">
+          <div class="text-rose-600 font-bold text-sm">PACKET LOSS DETECTED</div>
+          <p class="text-[11px] text-neutral-500 font-sans">物理パケットが撃墜・ロストしました。</p>
+          
+          <div class="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-[10px] text-neutral-600 font-mono space-y-1 text-left">
+            <div>到達ステージ: <span id="goStage" class="text-neutral-800 font-bold">STAGE 1</span></div>
+            <div>最終スコア: <span id="goScore" class="text-emerald-600 font-bold">0</span></div>
+            <div>飛行距離: <span id="goDistance" class="text-neutral-800 font-bold">0m</span></div>
+          </div>
+
+          <div id="rankSubmitArea" class="space-y-2 pt-1">
+            <input type="text" id="playerNameInput" maxlength="8" placeholder="呼出符号 (最大8文字)" class="w-full px-3 py-1.5 text-xs font-mono border border-neutral-300 rounded-lg text-center uppercase focus:outline-none focus:border-neutral-500">
+            <button id="saveScoreBtn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
+              記録を通信日誌に刻む
+            </button>
+          </div>
+
+          <button id="retryBtn" class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-900 text-white font-bold rounded-xl text-xs shadow active:scale-95 transition-transform cursor-pointer">
+            再送する [ リトライ ]
+          </button>
+        </div>
+
+        <!-- 完全クリア画面 -->
+        <div id="gameClearCard" class="hidden pixel-font text-xs md:text-sm text-neutral-800 bg-white/95 px-6 py-6 rounded-2xl border-2 border-emerald-400 shadow-2xl text-center max-w-md space-y-3">
+          <div class="text-emerald-600 font-bold text-base animate-bounce">MISSION COMPLETE!</div>
+          <div class="text-xs text-neutral-700 font-bold">世界中枢ルートDNS復旧完了</div>
+          <p class="text-[11px] text-neutral-600 font-sans leading-relaxed text-left bg-emerald-50 p-3 rounded-xl border border-emerald-200">
+            荒波のサメをかいくぐり、成層圏のデブリをかわし、山頂電波塔を抜けてルートデータセンターへ到達！伝書鳩がくわえた物理設定パッチによって世界中のインターネットが再接続されました！
+          </p>
+          <div class="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 text-[10px] text-neutral-600 font-mono space-y-1 text-left">
+            <div>最終スコア: <span id="clearFinalScore" class="text-emerald-600 font-bold">0</span></div>
+            <div>総飛行距離: <span id="clearFinalDistance" class="text-neutral-800 font-bold">0m</span></div>
+          </div>
+          <div id="clearRankSubmitArea" class="space-y-2 pt-1">
+            <input type="text" id="clearPlayerNameInput" maxlength="8" placeholder="英雄のコールサイン" class="w-full px-3 py-1.5 text-xs font-mono border border-neutral-300 rounded-lg text-center uppercase focus:outline-none focus:border-neutral-500">
+            <button id="clearSaveScoreBtn" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer">
+              英雄録に記録する
+            </button>
+          </div>
+          <button id="clearRestartBtn" class="w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-white font-bold rounded-xl text-xs cursor-pointer">
+            最初から再挑戦
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- モバイル用オンスクリーンコントローラー -->
+    <div class="w-full flex justify-between gap-3 mt-2 sm:hidden px-1">
+      <button id="duckTouchBtn" class="flex-1 py-3 bg-neutral-200 active:bg-neutral-300 rounded-xl font-mono text-xs text-neutral-700 font-bold shadow select-none flex items-center justify-center gap-1.5 border border-neutral-300">
+        <span>⬇️</span> <span>しゃがむ</span>
+      </button>
+      <button id="jumpTouchBtn" class="flex-1 py-3 bg-neutral-800 active:bg-neutral-900 rounded-xl font-mono text-xs text-white font-bold shadow select-none flex items-center justify-center gap-1.5">
+        <span>🕊️</span> <span>はばたく (2段可)</span>
+      </button>
+    </div>
+
+    <!-- ステージ進捗インジケーター -->
+    <div class="w-full mt-3 bg-white border border-neutral-200 rounded-xl p-3 shadow-sm">
+      <div class="flex justify-between items-center text-xs font-mono mb-1.5">
+        <div class="flex items-center gap-2">
+          <span id="stageBadge" class="px-2 py-0.5 bg-neutral-800 text-white rounded font-bold text-[10px]">STAGE 1</span>
+          <span id="stageName" class="font-bold text-neutral-700">Home LAN (自宅ベランダ)</span>
+        </div>
+        <div class="text-neutral-500 text-[11px]">
+          次の中継局まで: <span id="stageTimerText" class="font-bold text-neutral-800">120s</span>
+        </div>
+      </div>
+      <div class="w-full h-2 bg-neutral-100 rounded-full overflow-hidden border border-neutral-200">
+        <div id="stageProgressBar" class="h-full bg-neutral-800 transition-all duration-200" style="width: 0%"></div>
+      </div>
+    </div>
+
+    <!-- 開発者向け検証ツールバー（初期状態は完全非表示） -->
+    <div id="devToolsContainer" class="hidden w-full mt-3">
+      <div class="bg-neutral-50 border border-neutral-300 rounded-xl p-3 shadow-inner">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-[11px] font-mono text-neutral-600 font-bold">🛠️ 開発者コンソール（シークレットモード）</span>
+          <button id="closeDevToolsBtn" class="text-[11px] font-mono px-2 py-0.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded transition-colors cursor-pointer select-none">
+            ✕ 閉じて再開
+          </button>
+        </div>
+        <div class="text-[11px] text-rose-600 font-bold mb-2 flex items-center gap-1">
+          <span>⚠️</span> <span>開発ツールを使用すると、公平性維持のためランキング記録対象外となります。</span>
+        </div>
+        <div class="flex flex-wrap gap-2 text-xs font-mono">
+          <button id="dbgNextStageBtn" class="px-2.5 py-1.5 bg-neutral-800 hover:bg-neutral-700 text-white rounded-lg cursor-pointer">
+            ⏩ 次のステージへ
+          </button>
+          <button id="dbgTimeAdvanceBtn" class="px-2.5 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-lg cursor-pointer">
+            ⏱️ +30秒進める
+          </button>
+          <button id="dbgGodModeBtn" class="px-2.5 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-800 rounded-lg cursor-pointer">
+            🛡️ 当たり判定: <span id="godModeLabel" class="font-bold text-neutral-700">有効</span>
+          </button>
+          <button id="dbgSpawnQosBtn" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 rounded-lg cursor-pointer">
+            🌽 QoSコーン召喚
+          </button>
+          <button id="dbgSpawnSslBtn" class="px-2.5 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-900 rounded-lg cursor-pointer">
+            🔒 SSL鍵召喚
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 獲得可能アイテム一覧 -->
+    <section class="w-full mt-5 bg-white border border-neutral-200 rounded-2xl p-4 sm:p-5 shadow-sm">
+      <h2 class="text-sm sm:text-base font-bold text-neutral-900 mb-2 flex items-center gap-2">
+        <span>🎒</span> <span>回収可能パケット・強化アイテム一覧</span>
+      </h2>
+      <p class="text-xs text-neutral-500 mb-4 font-sans leading-relaxed">
+        飛行空域を漂う重要な伝送データや強化カプセルです。触れることで回収し、パケット損失を防ぎます。
+      </p>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <!-- SSL 暗号化キー -->
+        <div class="p-3.5 bg-sky-50/70 border border-sky-200 rounded-xl space-y-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🔒</span>
+            <span class="font-mono font-bold text-sky-900 text-xs">SSL暗号化キー (SHIELD)</span>
+          </div>
+          <div class="text-[11px] text-sky-800 font-sans leading-relaxed">
+            <span class="font-bold">効果：被弾を1回完全に無効化</span><br>
+            敵や障害物に衝突した際、身代わりとなって消滅し鳩を守ります。すでにシールド展開中に拾うと「STANDBY（予備）」として1つストック可能です。
+          </div>
+          <div class="text-[10px] text-sky-600 font-mono pt-1 border-t border-sky-100">
+            元ネタ: 通信を暗号化・改ざんから守るTLS/SSL証明書
+          </div>
+        </div>
+
+        <!-- ACK 応答パケット -->
+        <div class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">✉️</span>
+            <span class="font-mono font-bold text-emerald-900 text-xs">ACK確認応答 (BONUS)</span>
+          </div>
+          <div class="text-[11px] text-emerald-800 font-sans leading-relaxed">
+            <span class="font-bold">効果：ボーナススコア +100点</span><br>
+            空中をフワフワ漂う受領確認データ。回収すると即座にスコアが加算され、鳩の伝送品質（スループット）を底上げします。
+          </div>
+          <div class="text-[10px] text-emerald-600 font-mono pt-1 border-t border-emerald-100">
+            元ネタ: TCP通信で「無事に届いた」と返す肯定応答パケット
+          </div>
+        </div>
+
+        <!-- 特級トウモロコシ (QoS) -->
+        <div class="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1.5">
+          <div class="flex items-center gap-2">
+            <span class="text-lg">🌽</span>
+            <span class="font-mono font-bold text-amber-900 text-xs">特級トウモロコシ (RFC 2549 QoS)</span>
+          </div>
+          <div class="text-[11px] text-amber-800 font-sans leading-relaxed">
+            <span class="font-bold">効果：10秒間 完全無敵 ＆ 獲得スコア2倍</span><br>
+            鳩の好物。食べると虹色に覚醒し、あらゆる障害物を粉砕して突進します。軽快な無敵専用BGMが流れます。
+          </div>
+          <div class="text-[10px] text-amber-600 font-mono pt-1 border-t border-amber-100">
+            元ネタ: RFC 2549で規定された鳥類キャリアへの優先制御エサ
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 背景ストーリー ＆ ネットミーム解説 -->
+    <section class="w-full mt-4 bg-white border border-neutral-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-4">
+      <div>
+        <h2 class="text-sm sm:text-base font-bold text-neutral-900 flex items-center gap-2">
+          <span>📜</span> <span>世界断線の日：最後のパケット（ストーリー概要）</span>
+        </h2>
+        <p class="text-xs text-neutral-600 mt-2 leading-relaxed">
+          金曜の深夜2時、世界中枢データセンターの当直エンジニアが放った1行の「BGP経路誤爆」。地球上の全通信が迷子になった瞬間、道路工事のショベルカーが基幹光ファイバーを切り裂き、太平洋の海底では微弱電磁波に興奮したサメの群れが海底ケーブルを噛み砕いた。<br>
+          あらゆる有線・無線が沈黙し、データセンターは物理的な孤島と化した。世界を救う唯一の手段は、1990年に制定された伝説の規格「RFC 1149（鳥類キャリアによるIP伝送）」を発動し、正しい設定パッチをくわえた伝書鳩をサーバールームへ直接飛ばすことだった。
+        </p>
+      </div>
+
+      <!-- ステージ別障害物＆元ネタ詳細 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 text-xs">
+        <div class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+          <div class="font-bold text-neutral-800 flex items-center gap-1.5">
+            <span>🚜</span> <span>Stage 3: バックホー（光ファイバー最大の天敵）</span>
+          </div>
+          <p class="text-neutral-600 leading-relaxed text-[11px]">
+            「インターネット最大の捕食者はサメではなくショベルカー」。世界中で道路工事の重機が光ファイバーを引っこ抜いて大都市を丸ごとオフラインにする事故が後を絶ちません。
+          </p>
+        </div>
+
+        <div class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+          <div class="font-bold text-neutral-800 flex items-center gap-1.5">
+            <span>🦈</span> <span>Stage 5 & 6: 海底ケーブルを噛むサメ (Shark Attack)</span>
+          </div>
+          <p class="text-neutral-600 leading-relaxed text-[11px]">
+            Googleが2014年、太平洋を横断する国際海底ケーブルをケブラー繊維で二重補強した実話が元ネタ。漏れ出る微弱な電磁波をサメが生体電流と誤認して噛みつく現象が実際に多発しています。
+          </p>
+        </div>
+
+        <div class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+          <div class="font-bold text-neutral-800 flex items-center gap-1.5">
+            <span>🍞</span> <span>Stage 7: 暴走スマートトースター (Miraiボット)</span>
+          </div>
+          <p class="text-neutral-600 leading-relaxed text-[11px]">
+            2016年に全世界を震撼させたマルウェア「Mirai」。工場出荷時の初期パスワードのままネットに繋がっていたWebカメラやスマート家電が乗っ取られ、史上最大規模のDDoS攻撃兵器となりました。
+          </p>
+        </div>
+
+        <div class="p-3 bg-neutral-50 rounded-xl border border-neutral-200 space-y-1">
+          <div class="font-bold text-neutral-800 flex items-center gap-1.5">
+            <span>💺</span> <span>Stage 10: 椅子で滑走する限界エンジニア (BGP誤爆)</span>
+          </div>
+          <p class="text-neutral-600 leading-relaxed text-[11px]">
+            深夜の当直エンジニアによるBGP（境界ゲートウェイプロトコル）ルーティング誤設定。大手通信キャリアでも「1行の typo で国家単位のネットが数時間消滅する」事件が現実で幾度も起きています。
+          </p>
+        </div>
+      </div>
+
+      <!-- IETF公式規格へのリンク集 -->
+      <div class="pt-2 border-t border-neutral-200">
+        <div class="text-[11px] font-mono text-neutral-500 mb-2">IETF公式ドキュメント ＆ 参考資料（安全に別タブで開きます）:</div>
+        <div class="flex flex-wrap gap-2">
+          <a href="https://datatracker.ietf.org/doc/html/rfc1149" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded text-[11px] font-mono border border-neutral-300 transition-colors inline-flex items-center gap-1">
+            <span>📄</span> <span>RFC 1149 (IETF公式)</span> <span>↗</span>
+          </a>
+          <a href="https://datatracker.ietf.org/doc/html/rfc2549" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded text-[11px] font-mono border border-neutral-300 transition-colors inline-flex items-center gap-1">
+            <span>📄</span> <span>RFC 2549 QoS拡張 (IETF公式)</span> <span>↗</span>
+          </a>
+          <a href="https://ja.wikipedia.org/wiki/%E9%B3%A5%E9%A1%9E%E3%82%AD%E3%83%A3%E3%83%AA%E3%82%A2%E3%81%AB%E3%82%88%E3%82%8BIP" target="_blank" rel="noopener noreferrer" class="px-2.5 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded text-[11px] font-mono border border-neutral-300 transition-colors inline-flex items-center gap-1">
+            <span>🌐</span> <span>鳥類キャリアによるIP (Wikipedia)</span> <span>↗</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ランキングモーダル -->
+    <div id="rankModal" class="hidden fixed inset-0 bg-neutral-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-white border-2 border-neutral-300 rounded-2xl max-w-md w-full p-5 shadow-2xl space-y-4">
+        <div class="flex justify-between items-center border-b border-neutral-200 pb-3">
+          <h3 class="text-sm font-bold font-mono text-neutral-800 flex items-center gap-2">
+            <span>🏆</span> <span>伝書鳩パケット伝送ログ</span>
+          </h3>
+          <button id="closeRankBtn" class="text-neutral-400 hover:text-neutral-600 text-sm font-mono cursor-pointer">✕</button>
+        </div>
+        <div id="rankList" class="space-y-2 max-h-60 overflow-y-auto font-mono text-xs"></div>
+        <div class="pt-2">
+          <button id="closeRankBtn2" class="w-full py-2 bg-neutral-800 hover:bg-neutral-700 text-white rounded-xl text-xs font-bold transition-colors cursor-pointer">
+            閉じる
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    // Web Audio API によるシンセ音効
+    class SoundEngine {
+      constructor() {
+        this.ctx = null;
+        this.bgmTimer = null;
+        this.isBgmPlaying = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playJump() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(320, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(640, this.ctx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.12);
+        } catch(e) {}
+      }
+      playScore() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(523.25, this.ctx.currentTime);
+          osc.frequency.setValueAtTime(659.25, this.ctx.currentTime + 0.08);
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.2);
+        } catch(e) {}
+      }
+      playShield() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(440, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(880, this.ctx.currentTime + 0.15);
+          gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.25);
+        } catch(e) {}
+      }
+      playHit() {
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.25);
+          gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.25);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.25);
+        } catch(e) {}
+      }
+      playStageClear() {
+        if (!this.ctx) return;
+        try {
+          const notes = [523.25, 659.25, 783.99, 1046.50];
+          notes.forEach((freq, index) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + index * 0.1);
+            gain.gain.setValueAtTime(0.22, this.ctx.currentTime + index * 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + index * 0.1 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + index * 0.1);
+            osc.stop(this.ctx.currentTime + index * 0.1 + 0.28);
+          });
+        } catch(e) {}
+      }
+      startInvincibleBgm() {
+        if (!this.ctx || this.isBgmPlaying) return;
+        this.isBgmPlaying = true;
+        const melody = [523.25, 659.25, 783.99, 1046.50, 783.99, 659.25];
+        let noteIdx = 0;
+        this.bgmTimer = setInterval(() => {
+          if (!this.isBgmPlaying || !this.ctx) return;
+          try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(melody[noteIdx % melody.length], this.ctx.currentTime);
+            gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.09);
+            noteIdx++;
+          } catch(e) {}
+        }, 110);
+      }
+      stopInvincibleBgm() {
+        this.isBgmPlaying = false;
+        if (this.bgmTimer) {
+          clearInterval(this.bgmTimer);
+          this.bgmTimer = null;
+        }
+      }
+    }
+
+    // 各ステージ 120秒（2分）で中継所到達
+    const STAGE_DURATION_SEC = 120;
+    // 初速を快適で爽快感のある 5.2 に設定（上限 7.0）
+    const BASE_INITIAL_SPEED = 5.2;
+
+    const STAGE_INFO = [
+      { id: 1, title: 'Home LAN (自宅ベランダ)', skyTop: '#f8fafc', skyBot: '#e2e8f0', ground: '#cbd5e1' },
+      { id: 2, title: '5G Metro Towers (ラストワンマイル基地局)', skyTop: '#f1f5f9', skyBot: '#cbd5e1', ground: '#94a3b8' },
+      { id: 3, title: 'Fiber Highway (光幹線国道)', skyTop: '#fef3c7', skyBot: '#fde68a', ground: '#78716c' },
+      { id: 4, title: 'Core IXP Hub (国内相互接続点)', skyTop: '#e0e7ff', skyBot: '#c7d2fe', ground: '#64748b' },
+      { id: 5, title: 'Subsea Landing (海底ケーブル陸揚局)', skyTop: '#e0f2fe', skyBot: '#bae6fd', ground: '#0284c7' },
+      { id: 6, title: 'Stormy Pacific (荒波太平洋横断)', skyTop: '#0f172a', skyBot: '#1e293b', ground: '#0369a1' },
+      { id: 7, title: 'DDoS Wall (サイバー防壁都市)', skyTop: '#3b0764', skyBot: '#581c87', ground: '#1e1b4b' },
+      { id: 8, title: 'Orbital Bypass (成層圏・宇宙軌道)', skyTop: '#030712', skyBot: '#111827', ground: '#374151' },
+      { id: 9, title: 'Root Observatory (山頂ルートDNS電波局)', skyTop: '#312e81', skyBot: '#4338ca', ground: '#475569' },
+      { id: 10, title: 'Root Zone Data Center (世界中枢データセンター)', skyTop: '#18181b', skyBot: '#27272a', ground: '#09090b' }
+    ];
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const sound = new SoundEngine();
+
+    const V_WIDTH = 840;
+    const V_HEIGHT = 360;
+    const GROUND_Y = 300;
+
+    let state = 'START'; // START, RUNNING, PAUSED, STAGE_PAUSE, STAGE_TRANSITIONING, GAMEOVER, CLEAR
+    let score = 0;
+    let distance = 0;
+    let currentStage = 1;
+    let stageElapsedTime = 0;
+    let gameSpeed = BASE_INITIAL_SPEED;
+    let lastTime = 0;
+    let gameOverLockUntil = 0;
+    let transitionLockUntil = 0;
+    let usedDebugInCurrentRun = false;
+
+    let hasShield = false;
+    let shieldStocked = false;
+    let qosTimer = 0;
+    let bannerTimeoutId = null;
+
+    // DOM要素
+    const speedDisplay = document.getElementById('speedDisplay');
+    const shieldIndicator = document.getElementById('shieldIndicator');
+    const shieldStandbyIndicator = document.getElementById('shieldStandbyIndicator');
+    const qosIndicator = document.getElementById('qosIndicator');
+    const qosBarFill = document.getElementById('qosBarFill');
+    const godModeIndicator = document.getElementById('godModeIndicator');
+    const debugUsedBadge = document.getElementById('debugUsedBadge');
+    const pauseBtn = document.getElementById('pauseBtn');
+    const pauseOverlay = document.getElementById('pauseOverlay');
+    const resumeGameBtn = document.getElementById('resumeGameBtn');
+    const hiScoreText = document.getElementById('hiScoreText');
+    const scoreText = document.getElementById('scoreText');
+    const gameWrapper = document.getElementById('gameWrapper');
+    const damageFlash = document.getElementById('damageFlash');
+    const stageBannerOverlay = document.getElementById('stageBannerOverlay');
+    const bannerStageTag = document.getElementById('bannerStageTag');
+    const bannerStageTitle = document.getElementById('bannerStageTitle');
+    const stageClearModal = document.getElementById('stageClearModal');
+    const clearedStageTitle = document.getElementById('clearedStageTitle');
+    const nextStageTitle = document.getElementById('nextStageTitle');
+    const nextStageBtn = document.getElementById('nextStageBtn');
+    const gameOverlay = document.getElementById('gameOverlay');
+    const startCard = document.getElementById('startCard');
+    const startBtn = document.getElementById('startBtn');
+    const gameOverCard = document.getElementById('gameOverCard');
+    const goStage = document.getElementById('goStage');
+    const goScore = document.getElementById('goScore');
+    const goDistance = document.getElementById('goDistance');
+    const rankSubmitArea = document.getElementById('rankSubmitArea');
+    const playerNameInput = document.getElementById('playerNameInput');
+    const saveScoreBtn = document.getElementById('saveScoreBtn');
+    const retryBtn = document.getElementById('retryBtn');
+    const gameClearCard = document.getElementById('gameClearCard');
+    const clearFinalScore = document.getElementById('clearFinalScore');
+    const clearFinalDistance = document.getElementById('clearFinalDistance');
+    const clearRankSubmitArea = document.getElementById('clearRankSubmitArea');
+    const clearPlayerNameInput = document.getElementById('clearPlayerNameInput');
+    const clearSaveScoreBtn = document.getElementById('clearSaveScoreBtn');
+    const clearRestartBtn = document.getElementById('clearRestartBtn');
+    const duckTouchBtn = document.getElementById('duckTouchBtn');
+    const jumpTouchBtn = document.getElementById('jumpTouchBtn');
+    const stageBadge = document.getElementById('stageBadge');
+    const stageName = document.getElementById('stageName');
+    const stageTimerText = document.getElementById('stageTimerText');
+    const stageProgressBar = document.getElementById('stageProgressBar');
+    const inGameStageBadge = document.getElementById('inGameStageBadge');
+    const inGameStageTitle = document.getElementById('inGameStageTitle');
+    const inGameTimerText = document.getElementById('inGameTimerText');
+    const inGameProgressBar = document.getElementById('inGameProgressBar');
+    const rfcBadge = document.getElementById('rfcBadge');
+    const devToolsContainer = document.getElementById('devToolsContainer');
+    const closeDevToolsBtn = document.getElementById('closeDevToolsBtn');
+    const dbgNextStageBtn = document.getElementById('dbgNextStageBtn');
+    const dbgTimeAdvanceBtn = document.getElementById('dbgTimeAdvanceBtn');
+    const dbgGodModeBtn = document.getElementById('dbgGodModeBtn');
+    const godModeLabel = document.getElementById('godModeLabel');
+    const dbgSpawnQosBtn = document.getElementById('dbgSpawnQosBtn');
+    const dbgSpawnSslBtn = document.getElementById('dbgSpawnSslBtn');
+    const openRankBtn = document.getElementById('openRankBtn');
+    const rankModal = document.getElementById('rankModal');
+    const closeRankBtn = document.getElementById('closeRankBtn');
+    const closeRankBtn2 = document.getElementById('closeRankBtn2');
+    const rankList = document.getElementById('rankList');
+
+    const pigeon = {
+      x: 80,
+      y: GROUND_Y - 36,
+      w: 44,
+      h: 36,
+      baseH: 36,
+      duckH: 22,
+      vy: 0,
+      gravity: 0.68,
+      jumpPower: -11.5,
+      isDucking: false,
+      jumpsLeft: 2,
+      wingTimer: 0,
+      reset() {
+        this.y = GROUND_Y - this.baseH;
+        this.h = this.baseH;
+        this.vy = 0;
+        this.isDucking = false;
+        this.jumpsLeft = 2;
+        this.wingTimer = 0;
+      },
+      jump() {
+        if (this.isDucking) {
+          this.isDucking = false;
+          this.h = this.baseH;
+        }
+        if (this.jumpsLeft > 0) {
+          this.vy = this.jumpPower;
+          this.jumpsLeft--;
+          sound.playJump();
+          createParticles(this.x + 10, this.y + this.h, 5, '#e2e8f0');
+        }
+      },
+      duck(down) {
+        if (down) {
+          this.isDucking = true;
+          this.h = this.duckH;
+          if (this.y < GROUND_Y - this.h) {
+            this.vy += 4.5;
+          }
+        } else {
+          this.isDucking = false;
+          this.h = this.baseH;
+        }
+      },
+      update() {
+        this.wingTimer++;
+        this.y += this.vy;
+        this.vy += this.gravity;
+
+        const groundLevel = GROUND_Y - this.h;
+        if (this.y >= groundLevel) {
+          this.y = groundLevel;
+          this.vy = 0;
+          this.jumpsLeft = 2;
+        }
+      }
+    };
+
+    let obstacles = [];
+    let items = [];
+    let particles = [];
+    let floatingTexts = [];
+
+    let inMemoryLeaderboard = [
+      { name: "P1G30N", score: 8500, date: "2026/04/01" },
+      { name: "RFC_DEV", score: 5400, date: "2026/04/01" },
+      { name: "CISCO", score: 3200, date: "2026/04/01" }
+    ];
+    let hiScore = 8500;
+
+    function showStageBanner(stageNum) {
+      if (bannerTimeoutId) clearTimeout(bannerTimeoutId);
+      const info = STAGE_INFO[stageNum - 1];
+      bannerStageTag.textContent = `STAGE ${stageNum} / 10`;
+      bannerStageTitle.textContent = info.title;
+      stageBannerOverlay.classList.remove('hidden');
+      bannerTimeoutId = setTimeout(() => {
+        stageBannerOverlay.classList.add('hidden');
+      }, 1600);
+    }
+
+    function togglePause() {
+      if (state === 'RUNNING') {
+        state = 'PAUSED';
+        if (sound.isBgmPlaying) sound.stopInvincibleBgm();
+        pauseOverlay.classList.remove('hidden');
+        pauseBtn.innerHTML = '<span>▶️</span> <span class="hidden sm:inline">再開</span>';
+      } else if (state === 'PAUSED') {
+        state = 'RUNNING';
+        lastTime = performance.now();
+        pauseOverlay.classList.add('hidden');
+        pauseBtn.innerHTML = '<span>⏸️</span> <span class="hidden sm:inline">ポーズ</span>';
+        if (qosTimer > 0) sound.startInvincibleBgm();
+      }
+    }
+
+    let isDevToolsOpen = false;
+
+    function openDevTools() {
+      if (isDevToolsOpen) return;
+      isDevToolsOpen = true;
+      if (devToolsContainer) devToolsContainer.classList.remove('hidden');
+      if (state === 'RUNNING') {
+        togglePause();
+      }
+    }
+
+    function closeDevTools() {
+      if (!isDevToolsOpen) return;
+      isDevToolsOpen = false;
+      if (devToolsContainer) devToolsContainer.classList.add('hidden');
+      if (state === 'PAUSED') {
+        togglePause();
+      }
+    }
+
+    function toggleDevTools() {
+      if (isDevToolsOpen) {
+        closeDevTools();
+      } else {
+        openDevTools();
+      }
+    }
+
+    // 左上バッジのクリックで開閉（2回タップ/ダブルクリックで即展開）
+    let badgeClickCount = 0;
+    let badgeClickTimer = null;
+    const rfcBadgeEl = document.getElementById('rfcBadge');
+    if (rfcBadgeEl) {
+      rfcBadgeEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        sound.init();
+        badgeClickCount++;
+
+        // 視覚フィードバック：タップ時にランプが黄色に点滅
+        const dot = document.getElementById('rfcBadgeDot');
+        if (dot) {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400 animate-pulse';
+          setTimeout(() => {
+            if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-500 animate-ping';
+          }, 200);
+        }
+
+        if (badgeClickTimer) clearTimeout(badgeClickTimer);
+        
+        // 2回（ダブルタップ）または3回で即座にオープン
+        if (badgeClickCount >= 2) {
+          badgeClickCount = 0;
+          toggleDevTools();
+        } else {
+          badgeClickTimer = setTimeout(() => {
+            badgeClickCount = 0;
+          }, 800); // 800ms以内の2回クリックを許容
+        }
+      });
+    }
+
+    if (closeDevToolsBtn) {
+      closeDevToolsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeDevTools();
+      });
+    }
+
+    pauseBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isDevToolsOpen) {
+        closeDevTools();
+      } else if (state === 'RUNNING' || state === 'PAUSED') {
+        togglePause();
+      }
+    });
+
+    resumeGameBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (isDevToolsOpen) closeDevTools();
+      if (state === 'PAUSED') togglePause();
+    });
+
+    function handleAction() {
+      sound.init();
+      if (state === 'START') {
+        startGame();
+      } else if (state === 'RUNNING') {
+        pigeon.jump();
+      }
+    }
+
+    function handleDuck(down) {
+      sound.init();
+      if (state === 'RUNNING') pigeon.duck(down);
+    }
+
+    window.addEventListener('keydown', (e) => {
+      const isDKey = e.code === 'KeyD' || e.key === 'd' || e.key === 'D' || e.key === 'ｄ' || e.keyCode === 68;
+      if (isDKey) {
+        e.preventDefault();
+        if (e.repeat) return;
+        toggleDevTools();
+        return;
+      }
+
+      const isPKey = e.code === 'KeyP' || e.key === 'p' || e.key === 'P' || e.key === 'ｐ' || e.keyCode === 80;
+      if (isPKey) {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (isDevToolsOpen) {
+          closeDevTools();
+        } else if (state === 'RUNNING' || state === 'PAUSED') {
+          togglePause();
+        }
+        return;
+      }
+
+      if (state === 'PAUSED') return;
+
+      if (e.code === 'Space' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        if (e.repeat) return;
+        if (state === 'STAGE_PAUSE') {
+          resumeNextStage();
+        } else if (state === 'GAMEOVER' || state === 'CLEAR') {
+          if (Date.now() >= gameOverLockUntil) startGame();
+        } else {
+          handleAction();
+        }
+      } else if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        handleDuck(true);
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'ArrowDown') {
+        e.preventDefault();
+        handleDuck(false);
+      }
+    });
+
+    gameWrapper.addEventListener('click', (e) => {
+      if (state === 'PAUSED' || state === 'STAGE_PAUSE' || state === 'STAGE_TRANSITIONING') return;
+      if (state === 'RUNNING' || state === 'START') handleAction();
+    });
+
+    jumpTouchBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleAction();
+    });
+
+    duckTouchBtn.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleDuck(true);
+    });
+
+    duckTouchBtn.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      handleDuck(false);
+    });
+
+    startBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.init();
+      startGame();
+    });
+
+    retryBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (Date.now() >= gameOverLockUntil) {
+        sound.init();
+        startGame();
+      }
+    });
+
+    clearRestartBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      sound.init();
+      startGame();
+    });
+
+    function triggerStageClear() {
+      state = 'STAGE_PAUSE';
+      sound.playStageClear();
+      sound.stopInvincibleBgm();
+      qosTimer = 0;
+      qosIndicator.classList.add('hidden');
+      qosIndicator.classList.remove('flex');
+
+      clearedStageTitle.textContent = STAGE_INFO[currentStage - 1].title;
+      nextStageTitle.textContent = STAGE_INFO[currentStage].title;
+
+      stageClearModal.classList.remove('hidden');
+      stageClearModal.classList.add('flex');
+    }
+
+    function resumeNextStage() {
+      if (state !== 'STAGE_PAUSE' || Date.now() < transitionLockUntil) return;
+      transitionLockUntil = Date.now() + 800;
+      state = 'STAGE_TRANSITIONING';
+
+      nextStageBtn.blur();
+      stageClearModal.classList.add('hidden');
+      stageClearModal.classList.remove('flex');
+
+      currentStage++;
+      stageElapsedTime = 0;
+      // 速度を初期の快適な値に完全リセット！
+      gameSpeed = BASE_INITIAL_SPEED;
+      obstacles = [];
+      items = [];
+
+      pigeon.reset();
+      updateStageUI();
+      sound.playScore();
+
+      showStageBanner(currentStage);
+
+      setTimeout(() => {
+        state = 'RUNNING';
+        lastTime = performance.now();
+      }, 350);
+    }
+
+    nextStageBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      resumeNextStage();
+    });
+
+    function getObstaclePoolForStage(stg) {
+      switch (stg) {
+        case 1:
+          return [
+            { type: 'POLE', y: GROUND_Y - 48, w: 26, h: 48, air: false },
+            { type: 'ROUTER', y: GROUND_Y - 26, w: 30, h: 26, air: false },
+            { type: 'CROW', y: GROUND_Y - 80, w: 34, h: 24, air: true }
+          ];
+        case 2:
+          return [
+            { type: '5G_CELL', y: GROUND_Y - 54, w: 24, h: 54, air: false },
+            { type: 'ROGUE_DRONE', y: GROUND_Y - 86, w: 38, h: 22, air: true },
+            { type: 'POLE', y: GROUND_Y - 48, w: 26, h: 48, air: false }
+          ];
+        case 3:
+          return [
+            { type: 'EXCAVATOR', y: GROUND_Y - 58, w: 64, h: 58, air: false },
+            { type: 'TRAFFIC_CONE', y: GROUND_Y - 28, w: 24, h: 28, air: false },
+            { type: 'CROW', y: GROUND_Y - 82, w: 34, h: 24, air: true }
+          ];
+        case 4:
+          return [
+            { type: 'CHILLER_FAN', y: GROUND_Y - 50, w: 46, h: 50, air: false },
+            { type: 'SPAGHETTI_CABLES', y: GROUND_Y - 84, w: 42, h: 32, air: true },
+            { type: 'ROUTER', y: GROUND_Y - 28, w: 32, h: 28, air: false }
+          ];
+        case 5:
+          return [
+            { type: 'CABLE_DRUM', y: GROUND_Y - 46, w: 44, h: 46, air: false },
+            { type: 'SHARK_ATTACK', y: GROUND_Y, w: 48, h: 32, air: true, isShark: true },
+            { type: 'POLE', y: GROUND_Y - 48, w: 26, h: 48, air: false }
+          ];
+        case 6:
+          return [
+            { type: 'OCEAN_BUOY', y: GROUND_Y - 44, w: 32, h: 44, air: false },
+            { type: 'SHARK_ATTACK', y: GROUND_Y, w: 48, h: 32, air: true, isShark: true }
+          ];
+        case 7:
+          return [
+            { type: 'SMART_TOASTER', y: GROUND_Y - 34, w: 36, h: 34, air: false },
+            { type: 'SPAM_BAT', y: GROUND_Y - 86, w: 40, h: 26, air: true }
+          ];
+        case 8:
+          return [
+            { type: 'SPACE_MODULE', y: GROUND_Y - 48, w: 42, h: 48, air: false },
+            { type: 'SPACE_DEBRIS', y: GROUND_Y - 84, w: 38, h: 32, air: true }
+          ];
+        case 9:
+          return [
+            { type: 'DISH_ANTENNA', y: GROUND_Y - 52, w: 44, h: 52, air: false },
+            { type: 'MICROWAVE_PULSE', y: GROUND_Y - 82, w: 36, h: 36, air: true }
+          ];
+        case 10:
+          return [
+            { type: 'PANICKED_ENGINEER', y: GROUND_Y - 48, w: 38, h: 48, air: false },
+            { type: 'SERVER_RACK', y: GROUND_Y - 58, w: 36, h: 58, air: false },
+            { type: 'SPARKING_CABLE', y: GROUND_Y - 90, w: 38, h: 34, air: true }
+          ];
+        default:
+          return [{ type: 'POLE', y: GROUND_Y - 48, w: 26, h: 48, air: false }];
+      }
+    }
+
+    function spawnObstacle() {
+      const pool = getObstaclePoolForStage(currentStage);
+      const template = pool[Math.floor(Math.random() * pool.length)];
+
+      let spawnY = template.y;
+      let startX = V_WIDTH + 20;
+      let jumpPhase = 0;
+
+      if (template.isShark) {
+        // サメは海面から飛び跳ねてくる放物線軌道！
+        spawnY = GROUND_Y - 10;
+        jumpPhase = 0;
+      } else if (template.air) {
+        const heights = [GROUND_Y - 90, GROUND_Y - 76, GROUND_Y - 62];
+        spawnY = heights[Math.floor(Math.random() * heights.length)];
+      }
+
+      obstacles.push({
+        x: startX,
+        y: spawnY,
+        baseY: spawnY,
+        w: template.w,
+        h: template.h,
+        type: template.type,
+        isShark: !!template.isShark,
+        jumpProgress: 0,
+        passed: false
+      });
+    }
+
+    function spawnItem() {
+      const isQos = Math.random() < 0.28;
+      const type = isQos ? 'CORN' : (Math.random() < 0.45 ? 'SSL' : 'ACK');
+      const itemY = GROUND_Y - 45 - Math.random() * 80;
+
+      items.push({
+        x: V_WIDTH + 20,
+        y: itemY,
+        w: 24,
+        h: 24,
+        type: type,
+        collected: false,
+        floatOffset: Math.random() * Math.PI * 2
+      });
+    }
+
+    function createParticles(x, y, count, color) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 5,
+          vy: (Math.random() - 0.5) * 5,
+          size: Math.random() * 3 + 2,
+          life: 1.0,
+          decay: Math.random() * 0.04 + 0.02,
+          color: color
+        });
+      }
+    }
+
+    function addFloatingText(x, y, text, color) {
+      floatingTexts.push({
+        x: x,
+        y: y,
+        text: text,
+        color: color,
+        life: 1.0,
+        vy: -1.2
+      });
+    }
+
+    function triggerDamageFlash() {
+      damageFlash.classList.remove('opacity-0');
+      damageFlash.classList.add('opacity-100');
+      setTimeout(() => {
+        damageFlash.classList.remove('opacity-100');
+        damageFlash.classList.add('opacity-0');
+      }, 180);
+    }
+
+    function updateStageProgress(deltaTime) {
+      if (state !== 'RUNNING') return;
+
+      const deltaSec = deltaTime / 1000;
+      stageElapsedTime += deltaSec;
+
+      if (stageElapsedTime >= STAGE_DURATION_SEC) {
+        if (currentStage >= 10) {
+          triggerGameClear();
+          return;
+        } else {
+          triggerStageClear();
+          return;
+        }
+      }
+
+      // 初速 5.2 から、ステージ進行で最大 +1.8 までの加速（上限 7.0）
+      const progressRatio = Math.min(1, stageElapsedTime / STAGE_DURATION_SEC);
+      gameSpeed = BASE_INITIAL_SPEED + (progressRatio * 1.8);
+
+      updateStageUI();
+    }
+
+    function updateStageUI() {
+      const remainingSec = Math.max(0, Math.ceil(STAGE_DURATION_SEC - stageElapsedTime));
+      const pct = Math.min(100, (stageElapsedTime / STAGE_DURATION_SEC) * 100);
+
+      // 下部カードUIの更新
+      if (stageBadge) stageBadge.textContent = `STAGE ${currentStage}`;
+      if (stageName) stageName.textContent = STAGE_INFO[currentStage - 1].title;
+      if (stageTimerText) stageTimerText.textContent = `${remainingSec}s`;
+      if (stageProgressBar) stageProgressBar.style.width = `${pct}%`;
+
+      // ゲーム画面内オーバーレイ進捗バーのリアルタイム更新
+      if (inGameStageBadge) inGameStageBadge.textContent = `STAGE ${currentStage}/10`;
+      if (inGameStageTitle) inGameStageTitle.textContent = STAGE_INFO[currentStage - 1].title;
+      if (inGameTimerText) inGameTimerText.textContent = `${remainingSec}s`;
+      if (inGameProgressBar) inGameProgressBar.style.width = `${pct}%`;
+
+      speedDisplay.textContent = `SPD ${gameSpeed.toFixed(1)}`;
+    }
+
+    function drawBackground() {
+      const info = STAGE_INFO[currentStage - 1];
+
+      // グラデーション空
+      const grad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+      grad.addColorStop(0, info.skyTop);
+      grad.addColorStop(1, info.skyBot);
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, V_WIDTH, GROUND_Y);
+
+      // パララックス遠景（雲・天体）
+      ctx.fillStyle = (currentStage === 8) ? 'rgba(255, 255, 255, 0.15)' : 'rgba(255, 255, 255, 0.45)';
+      for (let i = 0; i < 4; i++) {
+        const cloudX = ((i * 240) - (distance * 0.2)) % (V_WIDTH + 160);
+        const actualX = (cloudX < -120) ? cloudX + V_WIDTH + 200 : cloudX;
+        const cloudY = 32 + (i % 3) * 24;
+        ctx.beginPath();
+        ctx.arc(actualX, cloudY, 18, 0, Math.PI * 2);
+        ctx.arc(actualX + 16, cloudY - 6, 22, 0, Math.PI * 2);
+        ctx.arc(actualX + 34, cloudY, 16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // 中景（ビル群や遠景のシルエット）
+      if (currentStage !== 6 && currentStage !== 8) {
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.22)';
+        for (let b = 0; b < 10; b++) {
+          const bX = ((b * 95) - (distance * 0.45)) % (V_WIDTH + 100);
+          const actualBX = (bX < -80) ? bX + V_WIDTH + 110 : bX;
+          const bH = 38 + (b % 4) * 22;
+          ctx.fillRect(actualBX, GROUND_Y - bH, 65, bH);
+        }
+      }
+
+      // 地面
+      ctx.fillStyle = info.ground;
+      ctx.fillRect(0, GROUND_Y, V_WIDTH, V_HEIGHT - GROUND_Y);
+
+      // 地面の境界線
+      ctx.strokeStyle = '#334155';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(0, GROUND_Y);
+      ctx.lineTo(V_WIDTH, GROUND_Y);
+      ctx.stroke();
+
+      // 地面スクロールストライプ
+      const tickOffset = (distance * 3) % 40;
+      ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+      ctx.lineWidth = 2;
+      for (let x = -tickOffset; x < V_WIDTH; x += 40) {
+        ctx.beginPath();
+        ctx.moveTo(x, GROUND_Y + 10);
+        ctx.lineTo(x + 20, GROUND_Y + 10);
+        ctx.stroke();
+      }
+
+      // 海ステージ（Stage 6）の波
+      if (currentStage === 6) {
+        ctx.fillStyle = '#0284c7';
+        for (let x = -((distance * 2) % 60); x < V_WIDTH + 60; x += 60) {
+          ctx.beginPath();
+          ctx.arc(x + 30, GROUND_Y, 16, Math.PI, 0, false);
+          ctx.fill();
+        }
+      } else if (currentStage === 8) {
+        // 宇宙の星屑
+        ctx.fillStyle = '#f8fafc';
+        for (let i = 0; i < 30; i++) {
+          const starX = (i * 41 - (distance * 0.2)) % V_WIDTH;
+          const starY = (i * 23) % (GROUND_Y - 30);
+          ctx.fillRect((starX + V_WIDTH) % V_WIDTH, starY, (i % 2 === 0 ? 2 : 1), (i % 2 === 0 ? 2 : 1));
+        }
+      }
+    }
+
+    function drawPigeon() {
+      ctx.save();
+      ctx.translate(pigeon.x, pigeon.y);
+
+      // QoS無敵レインボーオーラ
+      if (qosTimer > 0) {
+        const colors = ['#f43f5e', '#fbbf24', '#34d399', '#38bdf8', '#a855f7'];
+        const auraColor = colors[Math.floor(Date.now() / 60) % colors.length];
+        ctx.fillStyle = auraColor;
+        ctx.beginPath();
+        ctx.arc(pigeon.w / 2, pigeon.h / 2, pigeon.w * 0.72, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // SSLシールドバリア
+      if (hasShield) {
+        ctx.strokeStyle = 'rgba(56, 189, 248, 0.85)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(pigeon.w / 2, pigeon.h / 2, pigeon.w * 0.65, 0, Math.PI * 2);
+        ctx.stroke();
+      }
+
+      if (pigeon.isDucking) {
+        // しゃがみ姿勢（低空滑空）
+        ctx.fillStyle = '#94a3b8';
+        ctx.fillRect(4, 6, pigeon.w - 8, 14);
+        ctx.fillStyle = '#64748b';
+        ctx.fillRect(pigeon.w - 12, 5, 12, 11);
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(pigeon.w - 14, 8, 3, 7);
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(pigeon.w - 6, 7, 3, 3);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(pigeon.w - 5, 8, 2, 2);
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(pigeon.w, 9, 6, 4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(pigeon.w + 3, 10, 8, 6);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(pigeon.w + 6, 12, 2, 2);
+        ctx.fillStyle = '#475569';
+        ctx.fillRect(8, 6, 18, 5);
+      } else {
+        // 通常飛行姿勢
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(2, 16);
+        ctx.lineTo(-4, 22);
+        ctx.lineTo(6, 22);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#94a3b8';
+        ctx.beginPath();
+        ctx.ellipse(20, 20, 16, 11, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#64748b';
+        ctx.beginPath();
+        ctx.arc(pigeon.w - 12, 13, 8, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(pigeon.w - 16, 13, 3, 6);
+
+        ctx.fillStyle = '#dc2626';
+        ctx.fillRect(pigeon.w - 10, 9, 4, 4);
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(pigeon.w - 9, 10, 2, 2);
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.moveTo(pigeon.w - 5, 12);
+        ctx.lineTo(pigeon.w + 3, 14);
+        ctx.lineTo(pigeon.w - 5, 16);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(pigeon.w - 1, 14, 10, 7);
+        ctx.strokeStyle = '#94a3b8';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pigeon.w - 1, 14, 10, 7);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(pigeon.w + 3, 16, 3, 3);
+
+        const wingFlap = Math.sin(pigeon.wingTimer * 0.28) * 11;
+        ctx.fillStyle = '#475569';
+        ctx.beginPath();
+        ctx.moveTo(14, 18);
+        ctx.lineTo(26, 10 + wingFlap);
+        ctx.lineTo(28, 22);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.fillStyle = '#f59e0b';
+        ctx.fillRect(16, 28, 3, 5);
+        ctx.fillRect(22, 28, 3, 5);
+      }
+
+      ctx.restore();
+    }
+
+    function drawObstacle(obs) {
+      ctx.save();
+      ctx.translate(obs.x, obs.y);
+
+      switch (obs.type) {
+        case 'POLE':
+          ctx.fillStyle = '#78350f';
+          ctx.fillRect(10, 0, 6, obs.h);
+          ctx.fillRect(0, 6, obs.w, 5);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(2, 2, 4, 4);
+          ctx.fillRect(obs.w - 6, 2, 4, 4);
+          break;
+
+        case 'ROUTER':
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(0, 8, obs.w, obs.h - 8);
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(6, 0, 3, 8);
+          ctx.fillRect(obs.w - 9, 0, 3, 8);
+          ctx.fillStyle = '#10b981';
+          ctx.fillRect(4, 14, 4, 3);
+          ctx.fillRect(12, 14, 4, 3);
+          break;
+
+        case 'CROW':
+          // カラス（左向き！鳩に向かって飛来）
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.moveTo(6, obs.h * 0.45);
+          ctx.lineTo(0, obs.h * 0.55);
+          ctx.lineTo(6, obs.h * 0.65);
+          ctx.closePath();
+          ctx.fill();
+
+          ctx.fillStyle = '#09090b';
+          ctx.beginPath();
+          ctx.arc(10, obs.h * 0.55, 6, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(6, obs.h * 0.45, 3, 3);
+
+          ctx.fillStyle = '#18181b';
+          ctx.beginPath();
+          ctx.ellipse(obs.w * 0.55, obs.h * 0.58, obs.w * 0.35, obs.h * 0.28, 0, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#09090b';
+          ctx.beginPath();
+          ctx.moveTo(obs.w - 6, obs.h * 0.55);
+          ctx.lineTo(obs.w, obs.h * 0.45);
+          ctx.lineTo(obs.w, obs.h * 0.65);
+          ctx.closePath();
+          ctx.fill();
+
+          const crowFlap = Math.sin(Date.now() * 0.02) * 8;
+          ctx.fillStyle = '#27272a';
+          ctx.beginPath();
+          ctx.moveTo(obs.w * 0.45, obs.h * 0.55);
+          ctx.lineTo(obs.w * 0.6, obs.h * 0.2 + crowFlap);
+          ctx.lineTo(obs.w * 0.75, obs.h * 0.6);
+          ctx.closePath();
+          ctx.fill();
+          break;
+
+        case '5G_CELL':
+          ctx.fillStyle = '#64748b';
+          ctx.fillRect(8, 0, 8, obs.h);
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(0, 4, obs.w, 18);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(4, 8, obs.w - 8, 4);
+          break;
+
+        case 'ROGUE_DRONE':
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(8, 8, obs.w - 16, 10);
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(4, 11, 4, 4);
+          ctx.fillStyle = '#64748b';
+          ctx.fillRect(0, 6, obs.w, 3);
+          ctx.fillStyle = (Date.now() % 100 < 50) ? '#f43f5e' : '#10b981';
+          ctx.fillRect(2, 2, 8, 2);
+          ctx.fillRect(obs.w - 10, 2, 8, 2);
+          break;
+
+        case 'EXCAVATOR':
+          ctx.fillStyle = '#eab308';
+          ctx.fillRect(18, 16, 38, 26);
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(14, 42, 46, 16);
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(20, 20, 14, 12);
+          ctx.strokeStyle = '#ca8a04';
+          ctx.lineWidth = 5;
+          ctx.beginPath();
+          ctx.moveTo(24, 28);
+          ctx.lineTo(8, 6);
+          ctx.lineTo(0, 14);
+          ctx.stroke();
+          ctx.fillStyle = '#f43f5e';
+          ctx.fillRect(0, 14, 4, 4);
+          break;
+
+        case 'TRAFFIC_CONE':
+          ctx.fillStyle = '#ea580c';
+          ctx.beginPath();
+          ctx.moveTo(obs.w / 2, 0);
+          ctx.lineTo(obs.w, obs.h);
+          ctx.lineTo(0, obs.h);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(5, 12, obs.w - 10, 5);
+          break;
+
+        case 'CHILLER_FAN':
+          ctx.fillStyle = '#334155';
+          ctx.fillRect(0, 0, obs.w, obs.h);
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(obs.w / 2, obs.h / 2, 18, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = '#94a3b8';
+          ctx.lineWidth = 3;
+          const fanAngle = Date.now() * 0.02;
+          ctx.beginPath();
+          ctx.moveTo(obs.w / 2 - Math.cos(fanAngle) * 14, obs.h / 2 - Math.sin(fanAngle) * 14);
+          ctx.lineTo(obs.w / 2 + Math.cos(fanAngle) * 14, obs.h / 2 + Math.sin(fanAngle) * 14);
+          ctx.stroke();
+          break;
+
+        case 'SPAGHETTI_CABLES':
+          ctx.strokeStyle = '#3b82f6';
+          ctx.lineWidth = 2.5;
+          ctx.beginPath();
+          ctx.moveTo(0, 4);
+          ctx.bezierCurveTo(15, 28, 25, -6, obs.w, 20);
+          ctx.stroke();
+          ctx.strokeStyle = '#e11d48';
+          ctx.beginPath();
+          ctx.moveTo(0, 18);
+          ctx.bezierCurveTo(20, -2, 25, 34, obs.w, 10);
+          ctx.stroke();
+          break;
+
+        case 'CABLE_DRUM':
+          ctx.fillStyle = '#854d0e';
+          ctx.beginPath();
+          ctx.arc(obs.w / 2, obs.h / 2, obs.w / 2, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.arc(obs.w / 2, obs.h / 2, obs.w * 0.32, 0, Math.PI * 2);
+          ctx.fill();
+          break;
+
+        case 'SHARK_ATTACK':
+          // サメ（左向き！海面から跳ね上がって鳩に食らいつく）
+          ctx.fillStyle = '#475569';
+          ctx.beginPath();
+          ctx.ellipse(obs.w * 0.55, obs.h * 0.5, obs.w * 0.42, obs.h * 0.38, 0, 0, Math.PI * 2);
+          ctx.fill();
+          // 背びれ
+          ctx.beginPath();
+          ctx.moveTo(obs.w * 0.6, obs.h * 0.2);
+          ctx.lineTo(obs.w * 0.48, -4);
+          ctx.lineTo(obs.w * 0.38, obs.h * 0.2);
+          ctx.closePath();
+          ctx.fill();
+          // 口と牙（左側）
+          ctx.fillStyle = '#dc2626';
+          ctx.beginPath();
+          ctx.moveTo(12, obs.h * 0.55);
+          ctx.lineTo(0, obs.h * 0.5);
+          ctx.lineTo(12, obs.h * 0.7);
+          ctx.closePath();
+          ctx.fill();
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(4, obs.h * 0.52, 6, 3);
+          // 目（左側）
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(14, obs.h * 0.36, 3, 3);
+          // 尾びれ（右側）
+          ctx.fillStyle = '#334155';
+          ctx.beginPath();
+          ctx.moveTo(obs.w - 6, obs.h * 0.5);
+          ctx.lineTo(obs.w + 4, obs.h * 0.25);
+          ctx.lineTo(obs.w + 4, obs.h * 0.75);
+          ctx.closePath();
+          ctx.fill();
+          // 水しぶき
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fillRect(obs.w - 10, obs.h - 2, 14, 4);
+          break;
+
+        case 'OCEAN_BUOY':
+          ctx.fillStyle = '#f59e0b';
+          ctx.fillRect(4, 16, obs.w - 8, obs.h - 16);
+          ctx.fillStyle = '#64748b';
+          ctx.fillRect(obs.w / 2 - 2, 0, 4, 16);
+          ctx.fillStyle = (Date.now() % 400 < 200) ? '#ef4444' : '#7f1d1d';
+          ctx.fillRect(obs.w / 2 - 4, -4, 8, 5);
+          break;
+
+        case 'SMART_TOASTER':
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillRect(2, 8, obs.w - 4, obs.h - 8);
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(4, 16, 4, 4);
+          ctx.fillRect(12, 16, 4, 4);
+          const toastY = Math.sin(Date.now() * 0.02) * 5;
+          ctx.fillStyle = '#78350f';
+          ctx.fillRect(8, -2 + toastY, obs.w - 16, 8);
+          break;
+
+        case 'SPAM_BAT':
+          ctx.fillStyle = '#f8fafc';
+          ctx.fillRect(4, 4, obs.w - 12, obs.h - 8);
+          ctx.strokeStyle = '#dc2626';
+          ctx.strokeRect(4, 4, obs.w - 12, obs.h - 8);
+          ctx.fillStyle = '#dc2626';
+          ctx.fillRect(6, 8, 4, 4);
+          ctx.fillStyle = '#581c87';
+          const batFlap = Math.sin(Date.now() * 0.02) * 6;
+          ctx.beginPath();
+          ctx.moveTo(12, 10);
+          ctx.lineTo(obs.w, 8 + batFlap);
+          ctx.lineTo(16, 18);
+          ctx.closePath();
+          ctx.fill();
+          break;
+
+        case 'SPACE_MODULE':
+          ctx.fillStyle = '#e2e8f0';
+          ctx.fillRect(8, 8, obs.w - 16, obs.h - 16);
+          ctx.fillStyle = '#2563eb';
+          ctx.fillRect(0, 16, 8, 16);
+          ctx.fillRect(obs.w - 8, 16, 8, 16);
+          break;
+
+        case 'SPACE_DEBRIS':
+          ctx.save();
+          ctx.translate(obs.w / 2, obs.h / 2);
+          ctx.rotate(Date.now() * 0.003);
+          ctx.fillStyle = '#64748b';
+          ctx.fillRect(-12, -6, 24, 12);
+          ctx.fillStyle = '#1d4ed8';
+          ctx.fillRect(-10, -4, 8, 8);
+          ctx.restore();
+          break;
+
+        case 'DISH_ANTENNA':
+          ctx.fillStyle = '#cbd5e1';
+          ctx.beginPath();
+          ctx.arc(obs.w / 2, 20, 20, 0.2 * Math.PI, 0.8 * Math.PI, true);
+          ctx.stroke();
+          ctx.fillStyle = '#475569';
+          ctx.fillRect(obs.w / 2 - 3, 20, 6, obs.h - 20);
+          break;
+
+        case 'MICROWAVE_PULSE':
+          ctx.strokeStyle = '#818cf8';
+          ctx.lineWidth = 2;
+          const pulseR = (Date.now() % 500) / 500 * (obs.w / 2);
+          ctx.beginPath();
+          ctx.arc(obs.w / 2, obs.h / 2, pulseR, 0, Math.PI * 2);
+          ctx.stroke();
+          break;
+
+        case 'PANICKED_ENGINEER':
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(10, obs.h - 14, 18, 14);
+          ctx.fillStyle = '#f87171';
+          ctx.fillRect(12, 14, 14, 18);
+          ctx.fillStyle = '#fde047';
+          ctx.fillRect(10, 4, 10, 10);
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(-4, -6, 32, 10);
+          ctx.fillStyle = '#dc2626';
+          ctx.font = '8px monospace';
+          ctx.fillText('BGP!?', 0, 1);
+          break;
+
+        case 'SERVER_RACK':
+          ctx.fillStyle = '#09090b';
+          ctx.fillRect(0, 0, obs.w, obs.h);
+          ctx.fillStyle = '#ef4444';
+          for (let y = 6; y < obs.h - 6; y += 8) {
+            ctx.fillRect(4, y, 4, 2);
+            ctx.fillRect(12, y, 4, 2);
+          }
+          break;
+
+        case 'SPARKING_CABLE':
+          ctx.strokeStyle = '#fbbf24';
+          ctx.lineWidth = 3;
+          ctx.beginPath();
+          ctx.moveTo(obs.w / 2, -20);
+          ctx.lineTo(obs.w / 2, obs.h - 8);
+          ctx.stroke();
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(obs.w / 2 - 4, obs.h - 8, 8, 8);
+          break;
+      }
+
+      ctx.restore();
+    }
+
+    function drawItem(it) {
+      ctx.save();
+      const floatY = Math.sin(Date.now() * 0.005 + it.floatOffset) * 4;
+      ctx.translate(it.x, it.y + floatY);
+
+      if (it.type === 'CORN') {
+        ctx.fillStyle = '#f59e0b';
+        ctx.beginPath();
+        ctx.ellipse(12, 12, 10, 7, Math.PI / 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#10b981';
+        ctx.fillRect(4, 14, 6, 8);
+      } else if (it.type === 'SSL') {
+        ctx.fillStyle = '#38bdf8';
+        ctx.fillRect(4, 8, 16, 12);
+        ctx.strokeStyle = '#0284c7';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(4, 8, 16, 12);
+        ctx.beginPath();
+        ctx.arc(12, 8, 5, Math.PI, 0);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillRect(2, 4, 20, 14);
+        ctx.strokeStyle = '#10b981';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(2, 4, 20, 14);
+        ctx.fillStyle = '#10b981';
+        ctx.font = '8px monospace';
+        ctx.fillText('ACK', 4, 14);
+      }
+
+      ctx.restore();
+    }
+
+    function drawParticles() {
+      particles.forEach(p => {
+        ctx.fillStyle = p.color;
+        ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+      });
+      ctx.globalAlpha = 1.0;
+    }
+
+    function drawFloatingTexts() {
+      floatingTexts.forEach(t => {
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = t.color;
+        ctx.globalAlpha = Math.max(0, t.life);
+        ctx.fillText(t.text, t.x, t.y);
+      });
+      ctx.globalAlpha = 1.0;
+    }
+
+    let spawnTimer = 0;
+    let itemSpawnTimer = 0;
+
+    function gameLoop(timestamp) {
+      if (!lastTime) lastTime = timestamp;
+      const deltaTime = Math.min(64, timestamp - lastTime);
+      lastTime = timestamp;
+
+      // 進行中のみタイマー更新
+      if (state === 'RUNNING') {
+        updateStageProgress(deltaTime);
+      }
+
+      if (canvas.width !== V_WIDTH || canvas.height !== V_HEIGHT) {
+        canvas.width = V_WIDTH;
+        canvas.height = V_HEIGHT;
+      }
+
+      ctx.clearRect(0, 0, V_WIDTH, V_HEIGHT);
+      drawBackground();
+
+      if (state === 'RUNNING') {
+        pigeon.update();
+
+        distance += gameSpeed * 0.15;
+        const scoreInc = (qosTimer > 0) ? 2 : 1;
+        score += scoreInc;
+        scoreText.textContent = String(Math.floor(score)).padStart(5, '0');
+
+        if (qosTimer > 0) {
+          qosTimer -= deltaTime / 1000;
+          const pct = Math.max(0, (qosTimer / 10) * 100);
+          qosBarFill.style.width = `${pct}%`;
+          if (qosTimer <= 0) {
+            qosTimer = 0;
+            qosIndicator.classList.add('hidden');
+            qosIndicator.classList.remove('flex');
+            sound.stopInvincibleBgm();
+          }
+        }
+
+        spawnTimer += deltaTime;
+        // 快適なスポーン間隔（詰まりすぎず、適度な緊張感）
+        const spawnInterval = Math.max(1300, 2200 - (currentStage * 60) - (gameSpeed * 40));
+        if (spawnTimer >= spawnInterval) {
+          spawnTimer = 0;
+          spawnObstacle();
+        }
+
+        itemSpawnTimer += deltaTime;
+        if (itemSpawnTimer >= 3000) {
+          itemSpawnTimer = 0;
+          spawnItem();
+        }
+
+        // 障害物の移動と衝突判定
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+          const obs = obstacles[i];
+          obs.x -= gameSpeed;
+
+          // サメの放物線ジャンプ処理
+          if (obs.isShark) {
+            obs.jumpProgress += 0.015;
+            // サメが海面から上空へアーチを描いて跳ね上がる！
+            const jumpHeight = Math.sin(Math.min(Math.PI, obs.jumpProgress * Math.PI)) * 95;
+            obs.y = (GROUND_Y - 20) - jumpHeight;
+          }
+
+          if (!usedDebugInCurrentRun || godModeLabel.textContent !== '無効(神)') {
+            if (checkCollision(pigeon, obs)) {
+              if (qosTimer > 0) {
+                createParticles(obs.x + obs.w / 2, obs.y + obs.h / 2, 10, '#fbbf24');
+                sound.playScore();
+                addFloatingText(obs.x, obs.y, '+200 QoS', '#f59e0b');
+                score += 200;
+                obstacles.splice(i, 1);
+                continue;
+              } else if (hasShield) {
+                hasShield = false;
+                shieldIndicator.classList.add('hidden');
+                sound.playHit();
+                triggerDamageFlash();
+                addFloatingText(pigeon.x, pigeon.y - 10, 'SSL BROKEN', '#38bdf8');
+                createParticles(obs.x + obs.w / 2, obs.y + obs.h / 2, 8, '#38bdf8');
+                obstacles.splice(i, 1);
+
+                if (shieldStocked) {
+                  shieldStocked = false;
+                  hasShield = true;
+                  shieldStandbyIndicator.classList.add('hidden');
+                  shieldIndicator.classList.remove('hidden');
+                  addFloatingText(pigeon.x, pigeon.y - 22, 'SSL RELOADED', '#38bdf8');
+                }
+                continue;
+              } else {
+                triggerGameOver();
+                break;
+              }
+            }
+          }
+
+          if (obs.x + obs.w < -40) {
+            obstacles.splice(i, 1);
+          }
+        }
+
+        // アイテム処理
+        for (let i = items.length - 1; i >= 0; i--) {
+          const it = items[i];
+          it.x -= gameSpeed;
+
+          if (checkCollision(pigeon, it)) {
+            if (it.type === 'CORN') {
+              qosTimer = 10;
+              qosIndicator.classList.remove('hidden');
+              qosIndicator.classList.add('flex');
+              sound.startInvincibleBgm();
+              addFloatingText(pigeon.x, pigeon.y - 10, 'QoS 2X SPEED', '#f59e0b');
+              createParticles(it.x, it.y, 8, '#fbbf24');
+            } else if (it.type === 'SSL') {
+              if (!hasShield) {
+                hasShield = true;
+                shieldIndicator.classList.remove('hidden');
+                addFloatingText(pigeon.x, pigeon.y - 10, 'SSL SECURED', '#38bdf8');
+              } else if (!shieldStocked) {
+                shieldStocked = true;
+                shieldStandbyIndicator.classList.remove('hidden');
+                addFloatingText(pigeon.x, pigeon.y - 10, 'SSL STANDBY +1', '#38bdf8');
+              }
+              sound.playShield();
+              createParticles(it.x, it.y, 6, '#38bdf8');
+            } else {
+              score += 100;
+              sound.playScore();
+              addFloatingText(pigeon.x, pigeon.y - 10, '+100 ACK', '#10b981');
+              createParticles(it.x, it.y, 5, '#34d399');
+            }
+            items.splice(i, 1);
+            continue;
+          }
+
+          if (it.x + it.w < -30) {
+            items.splice(i, 1);
+          }
+        }
+      }
+
+      // 描画
+      obstacles.forEach(drawObstacle);
+      items.forEach(drawItem);
+      drawPigeon();
+
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+        if (p.life <= 0) particles.splice(i, 1);
+      }
+      drawParticles();
+
+      for (let i = floatingTexts.length - 1; i >= 0; i--) {
+        const t = floatingTexts[i];
+        t.y += t.vy;
+        t.life -= 0.025;
+        if (t.life <= 0) floatingTexts.splice(i, 1);
+      }
+      drawFloatingTexts();
+
+      requestAnimationFrame(gameLoop);
+    }
+
+    function checkCollision(r1, r2) {
+      const pad1 = 6;
+      const pad2 = 4;
+      return (
+        r1.x + pad1 < r2.x + r2.w - pad2 &&
+        r1.x + r1.w - pad1 > r2.x + pad2 &&
+        r1.y + pad1 < r2.y + r2.h - pad2 &&
+        r1.y + r1.h - pad1 > r2.y + pad2
+      );
+    }
+
+    function startGame() {
+      resetGame();
+      state = 'RUNNING';
+      gameOverlay.classList.add('hidden');
+      startCard.classList.add('hidden');
+      gameOverCard.classList.add('hidden');
+      gameClearCard.classList.add('hidden');
+      stageClearModal.classList.add('hidden');
+      pauseOverlay.classList.add('hidden');
+      lastTime = performance.now();
+      updateStageUI();
+      showStageBanner(1);
+    }
+
+    function resetGame() {
+      score = 0;
+      distance = 0;
+      currentStage = 1;
+      stageElapsedTime = 0;
+      gameSpeed = BASE_INITIAL_SPEED;
+      obstacles = [];
+      items = [];
+      particles = [];
+      floatingTexts = [];
+      hasShield = false;
+      shieldStocked = false;
+      qosTimer = 0;
+      usedDebugInCurrentRun = false;
+      debugUsedBadge.classList.add('hidden');
+      sound.stopInvincibleBgm();
+      pauseOverlay.classList.add('hidden');
+      pauseBtn.innerHTML = '<span>⏸️</span> <span class="hidden sm:inline">ポーズ</span>';
+      shieldIndicator.classList.add('hidden');
+      shieldStandbyIndicator.classList.add('hidden');
+      qosIndicator.classList.add('hidden');
+      qosIndicator.classList.remove('flex');
+      damageFlash.classList.add('opacity-0');
+      pigeon.reset();
+    }
+
+    function triggerGameOver() {
+      state = 'GAMEOVER';
+      sound.playHit();
+      sound.stopInvincibleBgm();
+      triggerDamageFlash();
+
+      gameOverLockUntil = Date.now() + 1200;
+
+      goStage.textContent = STAGE_INFO[currentStage - 1].title;
+      goScore.textContent = Math.floor(score);
+      goDistance.textContent = `${Math.floor(distance)}m`;
+
+      if (usedDebugInCurrentRun) {
+        rankSubmitArea.classList.add('hidden');
+      } else {
+        rankSubmitArea.classList.remove('hidden');
+        if (score > hiScore) {
+          hiScore = Math.floor(score);
+          hiScoreText.textContent = String(hiScore).padStart(5, '0');
+        }
+      }
+
+      gameOverlay.classList.remove('hidden');
+      gameOverCard.classList.remove('hidden');
+    }
+
+    function triggerGameClear() {
+      state = 'CLEAR';
+      sound.playStageClear();
+      sound.stopInvincibleBgm();
+
+      clearFinalScore.textContent = Math.floor(score);
+      clearFinalDistance.textContent = `${Math.floor(distance)}m`;
+
+      if (usedDebugInCurrentRun) {
+        clearRankSubmitArea.classList.add('hidden');
+      } else {
+        clearRankSubmitArea.classList.remove('hidden');
+      }
+
+      gameOverlay.classList.remove('hidden');
+      gameClearCard.classList.remove('hidden');
+    }
+
+    function markDebugUsed() {
+      usedDebugInCurrentRun = true;
+      debugUsedBadge.classList.remove('hidden');
+    }
+
+    dbgNextStageBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markDebugUsed();
+      if (currentStage < 10) {
+        currentStage++;
+        stageElapsedTime = 0;
+        // 開発者ツールでスキップしても初速は快適な初期値に設定
+        gameSpeed = BASE_INITIAL_SPEED;
+        obstacles = [];
+        items = [];
+        pigeon.reset();
+        updateStageUI();
+        showStageBanner(currentStage);
+      }
+    });
+
+    dbgTimeAdvanceBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markDebugUsed();
+      stageElapsedTime = Math.min(STAGE_DURATION_SEC - 1, stageElapsedTime + 30);
+      updateStageUI();
+    });
+
+    dbgGodModeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markDebugUsed();
+      if (godModeLabel.textContent === '有効') {
+        godModeLabel.textContent = '無効(神)';
+        godModeIndicator.classList.remove('hidden');
+      } else {
+        godModeLabel.textContent = '有効';
+        godModeIndicator.classList.add('hidden');
+      }
+    });
+
+    dbgSpawnQosBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markDebugUsed();
+      items.push({
+        x: pigeon.x + 120,
+        y: GROUND_Y - 45,
+        w: 24,
+        h: 24,
+        type: 'CORN',
+        collected: false,
+        floatOffset: 0
+      });
+    });
+
+    dbgSpawnSslBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      markDebugUsed();
+      items.push({
+        x: pigeon.x + 120,
+        y: GROUND_Y - 45,
+        w: 24,
+        h: 24,
+        type: 'SSL',
+        collected: false,
+        floatOffset: 0
+      });
+    });
+
+    openRankBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      renderLeaderboard();
+      rankModal.classList.remove('hidden');
+    });
+
+    function closeRank() {
+      rankModal.classList.add('hidden');
+    }
+    closeRankBtn.addEventListener('click', closeRank);
+    closeRankBtn2.addEventListener('click', closeRank);
+
+    function renderLeaderboard() {
+      rankList.innerHTML = '';
+      inMemoryLeaderboard.sort((a, b) => b.score - a.score);
+      inMemoryLeaderboard.forEach((entry, idx) => {
+        const item = document.createElement('div');
+        item.className = 'flex justify-between items-center p-2 bg-neutral-50 rounded border border-neutral-200';
+        item.innerHTML = `
+          <div class="flex items-center gap-2">
+            <span class="font-bold ${idx === 0 ? 'text-amber-500' : 'text-neutral-500'}">#${idx + 1}</span>
+            <span class="font-bold text-neutral-800">${entry.name}</span>
+          </div>
+          <div class="text-right">
+            <span class="font-bold text-emerald-600">${entry.score} pts</span>
+            <span class="text-[10px] text-neutral-400 block">${entry.date}</span>
+          </div>
+        `;
+        rankList.appendChild(item);
+      });
+    }
+
+    saveScoreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = playerNameInput.value.trim().toUpperCase() || 'PIGEON';
+      inMemoryLeaderboard.push({
+        name: name,
+        score: Math.floor(score),
+        date: new Date().toISOString().split('T')[0]
+      });
+      rankSubmitArea.classList.add('hidden');
+      renderLeaderboard();
+      rankModal.classList.remove('hidden');
+    });
+
+    clearSaveScoreBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = clearPlayerNameInput.value.trim().toUpperCase() || 'HERO';
+      inMemoryLeaderboard.push({
+        name: name,
+        score: Math.floor(score),
+        date: new Date().toISOString().split('T')[0]
+      });
+      clearRankSubmitArea.classList.add('hidden');
+      renderLeaderboard();
+      rankModal.classList.remove('hidden');
+    });
+
+    window.onload = function() {
+      updateStageUI();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
