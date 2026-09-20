@@ -1,0 +1,1383 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>RFC 1149: Ocean Carrier Runner - 太平洋サメ海峡突破作戦</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@500;700;800&display=swap" rel="stylesheet">
+  <style>
+    .font-pixel { font-family: 'Press Start 2P', monospace; }
+    .font-mono-code { font-family: 'JetBrains Mono', monospace; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    /* スキャンラインエフェクト */
+    .scanlines {
+      position: relative;
+    }
+    .scanlines::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(15, 23, 42, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+      background-size: 100% 4px;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0.65;
+    }
+    /* カスタムスクロールバー */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.9); }
+    ::-webkit-scrollbar-thumb { background: #0284c7; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center p-2 sm:p-4 selection:bg-sky-500 selection:text-white">
+
+  <!-- メインゲームコンテナ -->
+  <div class="w-full max-w-5xl flex flex-col items-center">
+
+    <!-- トップヘッダー -->
+    <header class="w-full flex flex-col items-center text-center mb-3">
+      <div class="inline-flex items-center gap-2 px-3 py-1 bg-sky-950/80 border border-sky-600/50 rounded-full text-xs font-mono-code text-sky-300 mb-1.5 shadow-sm">
+        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+        <span>RFC 1149: Ocean Carrier Runner [公式続編]</span>
+      </div>
+      <h1 class="text-xl sm:text-2xl md:text-3xl font-black tracking-tight text-white flex items-center gap-2">
+        <span>太平洋サメ海峡：光なき大洋の単独輸送</span>
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-400 mt-1 max-w-2xl leading-relaxed">
+        前作で陸上DNSは復旧した。しかし太平洋海底ケーブルはサイバーシャーク群に壊滅！<br class="hidden sm:inline">
+        孤立した大陸を繋ぐため、歴戦の伝書鳩「フェザー」が荒波の上空へ緊急出撃する。
+      </p>
+    </header>
+
+    <!-- HUD (ステータス・スコア・ポーズ) -->
+    <div class="w-full flex justify-between items-center mb-1 px-2 text-xs font-mono-code text-slate-300">
+      <div class="flex items-center gap-3 flex-wrap">
+        <span class="flex items-center gap-1.5 text-sky-400 font-bold">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span id="chapter-badge" class="px-2 py-0.5 rounded bg-sky-950 border border-sky-700 text-sky-300 text-[11px]">
+            Ch.1: 発進海域
+          </span>
+        </span>
+        <div class="flex items-baseline gap-1 text-amber-400">
+          <span class="text-slate-500 text-[10px]">PAYLOAD:</span>
+          <span id="packet-counter" class="font-bold text-sm">0 KB</span>
+        </div>
+        <div class="flex items-baseline gap-1 text-emerald-400">
+          <span class="text-slate-500 text-[10px]">RTT:</span>
+          <span id="ping-counter" class="font-bold text-sm">54,000 ms</span>
+        </div>
+        <div class="flex items-baseline gap-1 text-rose-400">
+          <span class="text-slate-500 text-[10px]">LOSS:</span>
+          <span id="loss-counter" class="font-bold text-sm">0%</span>
+        </div>
+        <span id="god-badge" class="hidden px-2 py-0.5 rounded bg-rose-950 border border-rose-600 text-rose-300 text-[10px] font-bold animate-bounce">
+          🛡️ GOD MODE
+        </span>
+      </div>
+
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button id="pause-btn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 rounded text-[11px] text-slate-200 transition cursor-pointer" title="ポーズ (P)">
+          ⏸️ ポーズ
+        </button>
+        <button id="sound-btn" class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 active:bg-slate-900 border border-slate-700 rounded text-[11px] text-slate-200 transition cursor-pointer" title="消音切替">
+          🔊 音声
+        </button>
+        <button id="dev-open-btn" class="px-2 py-1 bg-slate-900 hover:bg-slate-800 border border-amber-600/60 rounded text-[10px] text-amber-400 transition cursor-pointer" title="開発コンソール (D)">
+          [D] コンソール
+        </button>
+      </div>
+    </div>
+
+    <!-- ゲーム画面キャンバスラッパー -->
+    <div id="game-wrapper" class="relative w-full aspect-[21/10] min-h-[300px] max-h-[560px] bg-slate-900 border-2 border-slate-800 rounded-2xl overflow-hidden shadow-2xl scanlines cursor-pointer">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- 画面内上部：チャプター進行度バー -->
+      <div class="absolute top-2 left-3 right-3 z-15 pointer-events-none flex flex-col gap-1 bg-slate-950/70 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-sky-500/20">
+        <div class="flex justify-between items-center text-[10px] sm:text-xs font-mono-code text-slate-300">
+          <span class="flex items-center gap-1.5 font-bold text-sky-300">
+            <span>洋上ルーター中継点まで:</span>
+            <span id="dist-remain" class="text-amber-400 font-bold">5,800 m</span>
+          </span>
+          <span class="text-slate-400">高度: <span id="altitude-text" class="text-emerald-400 font-bold">180m</span></span>
+        </div>
+        <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden border border-slate-700">
+          <div id="distance-progress" class="h-full bg-gradient-to-r from-sky-500 via-indigo-400 to-emerald-400 transition-all duration-150" style="width: 0%"></div>
+        </div>
+      </div>
+
+      <!-- 無線通信・ストーリーダイアログ枠 -->
+      <div id="story-box" class="absolute bottom-5 left-1/2 -translate-x-1/2 w-11/12 max-w-xl bg-slate-950/92 border-2 border-sky-500 rounded-xl p-3 shadow-2xl backdrop-blur-md transition-all duration-300 opacity-0 pointer-events-none z-30">
+        <div class="flex items-start gap-3">
+          <div id="story-avatar" class="w-10 h-10 rounded-lg bg-sky-950 border border-sky-400 flex items-center justify-center text-xl flex-shrink-0 shadow-inner">
+            🕊️
+          </div>
+          <div class="flex-grow">
+            <div class="flex justify-between items-center">
+              <span id="story-speaker" class="text-[11px] font-bold text-sky-400 font-mono-code">伝書鳩 (Avian Carrier #01)</span>
+              <span class="text-[9px] text-slate-500 font-mono-code">FREQ: 114.90 MHz</span>
+            </div>
+            <p id="story-text" class="text-xs sm:text-sm text-slate-200 mt-1 leading-relaxed"></p>
+          </div>
+        </div>
+      </div>
+
+      <!-- スタート / ゲームオーバー / クリア / 一時停止 オーバーレイ -->
+      <div id="game-overlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm z-40 flex flex-col items-center justify-center p-4 text-center select-none">
+        <div class="max-w-md w-full bg-slate-900/95 border-2 border-sky-500/80 p-6 rounded-2xl shadow-2xl">
+          <div id="overlay-icon" class="text-4xl mb-2 animate-bounce">🕊️🌊🦈</div>
+          <h2 id="overlay-title" class="text-lg sm:text-xl font-bold font-pixel text-sky-400 tracking-wide mb-1 leading-relaxed">
+            RFC 1149: OCEAN RUNNER
+          </h2>
+          <p class="text-[11px] text-sky-200/70 font-mono-code mb-4">A Standard for the Transmission of IP Datagrams on Avian Carriers</p>
+          
+          <div id="overlay-msg" class="text-xs text-slate-300 mb-5 leading-relaxed bg-slate-950/70 p-3.5 rounded-xl border border-slate-800 text-left">
+            前作『世界断線の日』で陸上は救われた。しかし太平洋の全海底光ケーブルが異常進化したメガロドン型サイバーサメ群に食いちぎられた！<br><br>
+            荒れ狂う海原を羽ばたき、跳躍する巨大ザメを回避しながら対岸のメガフロート洋上ルーターへIPパケットを物理配達せよ！<br>
+            <div class="mt-2 pt-2 border-t border-slate-800 text-[11px] font-mono-code flex gap-2 sm:gap-3 text-slate-300">
+              <span class="text-sky-400">🔵 青:低空(上を飛べ)</span>
+              <span class="text-amber-400">🟡 黄:中空</span>
+              <span class="text-rose-400">🔴 赤:最上空(下をくぐれ)</span>
+            </div>
+          </div>
+
+          <button id="start-btn" class="w-full py-3.5 px-6 rounded-xl font-bold bg-gradient-to-r from-sky-500 to-indigo-600 hover:from-sky-400 hover:to-indigo-500 text-white shadow-lg shadow-sky-500/25 transition transform active:scale-95 text-sm font-mono-code cursor-pointer">
+            通信を開始する [SPACE / クリック]
+          </button>
+          
+          <div class="mt-4 pt-3 border-t border-slate-800 text-[11px] text-slate-400 flex justify-between items-center font-mono-code">
+            <span>羽ばたく: [SPACE / ↑ / タップ]</span>
+            <span class="text-amber-400">[D] 開発コンソール</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
+        <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-850 space-y-1">
+          <div class="font-bold text-sky-300 font-mono-code flex items-center gap-1.5">
+            <span>🦈</span> <span>跳躍高度の識別（サメの光体色）</span>
+          </div>
+          <p class="text-slate-400 leading-relaxed text-[11px]">
+            サメは放電シグナルによって発光色が異なります。<b>青色</b>は水面付近の低空ホップ、<b>黄色</b>は中空ジャンプ、<b>赤色</b>は画面天井まで跳ね上がるメガロドン級です。赤色サメは最上部でも捕食されるため、海面近くを滑空して下をくぐりましょう。
+          </p>
+        </div>
+
+        <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-850 space-y-1">
+          <div class="font-bold text-sky-300 font-mono-code flex items-center gap-1.5">
+            <span>⏱️</span> <span>RTT 54,000ms（鳥類キャリア遅延）</span>
+          </div>
+          <p class="text-slate-400 leading-relaxed text-[11px]">
+            RFC 1149（伝書鳩によるIP伝送）の実際の実験（2001年ベルゲン大学）では、パケットの往復時間（RTT）は約52分〜96分を要しました。ゲーム画面のRTTが数十秒〜数分単位なのは仕様です。
+          </p>
+        </div>
+
+        <div class="p-3 bg-slate-950/80 rounded-xl border border-slate-850 space-y-1">
+          <div class="font-bold text-sky-300 font-mono-code flex items-center gap-1.5">
+            <span>⚓</span> <span>メガフロート洋上ルーター #01</span>
+          </div>
+          <p class="text-slate-400 leading-relaxed text-[11px]">
+            超巨大浮体式海洋構造物（メガフロート）に設置された洋上中継ゲートウェイ。フェザーがくわえるIPパケットカプセルが物理スロットに挿入されることで、大陸間ハンドシェイクが再確立されます。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 開発者コンソールモーダル (Dキーで開閉) -->
+    <div id="dev-panel" style="display: none;" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div class="bg-slate-900 border-2 border-sky-500 rounded-2xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+        <div class="flex items-center justify-between px-4 py-3 bg-slate-950 border-b border-slate-800">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+            <h3 class="text-xs sm:text-sm font-bold font-mono-code text-sky-400">RFC 1149 DEBUG & STORY CONSOLE</h3>
+          </div>
+          <button id="dev-close-btn" class="text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800 text-xs font-mono-code transition cursor-pointer">
+            ✕ 閉じる (D)
+          </button>
+        </div>
+
+        <div class="p-4 overflow-y-auto space-y-4 text-xs font-mono-code text-slate-200">
+          <div class="grid grid-cols-4 gap-2 bg-slate-950/80 p-2.5 rounded-xl border border-slate-800 text-center">
+            <div><span class="text-slate-500 block text-[9px]">FPS</span><span id="dev-fps" class="font-bold text-emerald-400">60</span></div>
+            <div><span class="text-slate-500 block text-[9px]">ALTITUDE</span><span id="dev-alt" class="font-bold text-sky-400">0m</span></div>
+            <div><span class="text-slate-500 block text-[9px]">SHARKS</span><span id="dev-sharks" class="font-bold text-rose-400">0</span></div>
+            <div><span class="text-slate-500 block text-[9px]">GOD MODE</span><span id="dev-god-val" class="font-bold text-slate-400">OFF</span></div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-1">チート＆検証フラグ</div>
+            <div class="grid grid-cols-2 gap-2">
+              <label class="flex items-center justify-between p-2 bg-slate-800/60 rounded-lg cursor-pointer border border-slate-700">
+                <span>🛡️ 無敵 (God Mode)</span>
+                <input type="checkbox" id="dev-god-toggle" class="accent-sky-500">
+              </label>
+              <label class="flex items-center justify-between p-2 bg-slate-800/60 rounded-lg cursor-pointer border border-slate-700">
+                <span>📐 当たり判定枠</span>
+                <input type="checkbox" id="dev-hitbox-toggle" class="accent-sky-500">
+              </label>
+              <label class="flex items-center justify-between p-2 bg-slate-800/60 rounded-lg cursor-pointer border border-slate-700">
+                <span>🦈 サメ一時停止</span>
+                <input type="checkbox" id="dev-freeze-sharks" class="accent-sky-500">
+              </label>
+              <label class="flex items-center justify-between p-2 bg-slate-800/60 rounded-lg cursor-pointer border border-slate-700">
+                <span>🕊️ 自由浮遊</span>
+                <input type="checkbox" id="dev-infinite-jump" class="accent-sky-500">
+              </label>
+            </div>
+          </div>
+
+          <div class="space-y-2">
+            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800 pb-1">即時トリガー</div>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <button id="dev-spawn-shark" class="p-2 rounded-lg bg-rose-950/80 hover:bg-rose-900 border border-rose-700 text-rose-200 text-xs font-bold transition cursor-pointer">
+                🦈 サメ急襲
+              </button>
+              <button id="dev-add-packet" class="p-2 rounded-lg bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700 text-emerald-200 text-xs font-bold transition cursor-pointer">
+                📦 +128 KB
+              </button>
+              <button id="dev-skip-ch" class="p-2 rounded-lg bg-indigo-950/80 hover:bg-indigo-900 border border-indigo-700 text-indigo-200 text-xs font-bold transition cursor-pointer">
+                ⏩ 次章へ進む
+              </button>
+              <button id="dev-victory" class="p-2 rounded-lg bg-amber-950/80 hover:bg-amber-900 border border-amber-700 text-amber-200 text-xs font-bold transition cursor-pointer">
+                🏆 即時クリア
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="px-4 py-2.5 bg-slate-950 border-t border-slate-800 flex justify-between items-center text-[10px] text-slate-500 font-mono-code">
+          <span>※ [D]キーまたは[P]キーでいつでも閉じて再開できます</span>
+          <button id="dev-reset-btn" class="text-rose-400 hover:text-rose-300 cursor-pointer">初期化</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* Web Audio API 音響エンジン */
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+        this.muted = false;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playFlap() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(340, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(110, this.ctx.currentTime + 0.12);
+          gain.gain.setValueAtTime(0.2, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.12);
+        } catch(e) {}
+      }
+      playPacket() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(587.33, this.ctx.currentTime);
+          osc.frequency.setValueAtTime(880, this.ctx.currentTime + 0.06);
+          gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.18);
+        } catch(e) {}
+      }
+      playSharkChomp() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+          osc.frequency.linearRampToValueAtTime(35, this.ctx.currentTime + 0.35);
+          gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.35);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.35);
+        } catch(e) {}
+      }
+      playVictory() {
+        if (this.muted || !this.ctx) return;
+        try {
+          const notes = [440, 554.37, 659.25, 880];
+          notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime + idx * 0.11);
+            gain.gain.setValueAtTime(0.12, this.ctx.currentTime + idx * 0.11);
+            gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.11 + 0.28);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.11);
+            osc.stop(this.ctx.currentTime + idx * 0.11 + 0.28);
+          });
+        } catch(e) {}
+      }
+    }
+
+    const sound = new SoundFX();
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    /* 続編チャプター設定（ストーリー企画書と完全準拠） */
+    const CHAPTERS = [
+      {
+        id: 1,
+        title: 'Ch.1: 発進海域 (Departure)',
+        distanceGoal: 1000,
+        sharkRate: 0.0055,
+        storyText: '「こちら伝書鳩01。海上へ展開完了！サメは色で高さが判別可能（青:低空 / 黄:中空 / 赤:最上空）。」',
+        speaker: '伝書鳩 (Avian Carrier #01)',
+        avatar: '🕊️'
+      },
+      {
+        id: 2,
+        title: 'Ch.2: サメ海峡 (Shark Strait)',
+        distanceGoal: 2400,
+        sharkRate: 0.013,
+        storyText: '',
+        speaker: '洋上管制 (PACIFIC-GATE)',
+        avatar: '⚓'
+      },
+      {
+        id: 3,
+        title: 'Ch.3: パケット損失嵐 (Packet Storm)',
+        distanceGoal: 4000,
+        sharkRate: 0.019,
+        storyText: '',
+        speaker: '洋上管制 (PACIFIC-GATE)',
+        avatar: '⛈️'
+      },
+      {
+        id: 4,
+        title: 'Ch.4: 目標ルーター到達 (ACK)',
+        distanceGoal: 5800,
+        sharkRate: 0.011,
+        storyText: '「メガフロート洋上ルーターを発見！スロットへ向かえ！」',
+        speaker: '伝書鳩 (Avian Carrier #01)',
+        avatar: '🕊️'
+      }
+    ];
+
+    const game = {
+      state: 'READY', // READY, PLAYING, PAUSED, GAMEOVER, VICTORY
+      chapterIndex: 0,
+      distance: 0,
+      totalGoal: 5800,
+      packets: 0,
+      packetLoss: 0,
+      basePing: 54000,
+      debug: {
+        panelOpen: false,
+        godMode: false,
+        showHitboxes: false,
+        freezeSharks: false,
+        infiniteJump: false
+      }
+    };
+
+    const pigeon = {
+      x: 140,
+      y: 180,
+      width: 42,
+      height: 30,
+      vy: 0,
+      gravity: 0.31,
+      flapPower: -7.3,
+      wingAngle: 0,
+      reset(y) {
+        this.x = 140;
+        this.y = y || 180;
+        this.vy = 0;
+      }
+    };
+
+    let sharks = [];
+    let packets = [];
+    let clouds = [];
+    let particles = [];
+
+    function resizeCanvas() {
+      const wrapper = document.getElementById('game-wrapper');
+      canvas.width = wrapper.clientWidth;
+      canvas.height = wrapper.clientHeight;
+      initClouds();
+    }
+    window.addEventListener('resize', resizeCanvas);
+
+    function initClouds() {
+      clouds = [];
+      for (let i = 0; i < 7; i++) {
+        clouds.push({
+          x: Math.random() * canvas.width,
+          y: 20 + Math.random() * (canvas.height * 0.35),
+          speed: 0.3 + Math.random() * 0.5,
+          scale: 0.7 + Math.random() * 0.8
+        });
+      }
+    }
+
+    /* 開発者コンソール関連 */
+    const devPanelEl = document.getElementById('dev-panel');
+    const devOpenBtn = document.getElementById('dev-open-btn');
+    const devCloseBtn = document.getElementById('dev-close-btn');
+    const devGodToggle = document.getElementById('dev-god-toggle');
+    const devHitboxToggle = document.getElementById('dev-hitbox-toggle');
+    const devFreezeSharks = document.getElementById('dev-freeze-sharks');
+    const devInfiniteJump = document.getElementById('dev-infinite-jump');
+    const godBadge = document.getElementById('god-badge');
+
+    function toggleDevPanel(forceState) {
+      const shouldOpen = (forceState !== undefined) ? forceState : (devPanelEl.style.display === 'none');
+      if (shouldOpen) {
+        devPanelEl.style.display = 'flex';
+        game.debug.panelOpen = true;
+        if (game.state === 'PLAYING') game.state = 'PAUSED';
+      } else {
+        devPanelEl.style.display = 'none';
+        game.debug.panelOpen = false;
+        if (game.state === 'PAUSED') game.state = 'PLAYING';
+      }
+    }
+
+    devOpenBtn.addEventListener('click', () => toggleDevPanel(true));
+    devCloseBtn.addEventListener('click', () => toggleDevPanel(false));
+
+    devGodToggle.addEventListener('change', (e) => {
+      game.debug.godMode = e.target.checked;
+      document.getElementById('dev-god-val').textContent = game.debug.godMode ? 'ON' : 'OFF';
+      document.getElementById('dev-god-val').className = game.debug.godMode ? 'font-bold text-amber-300' : 'font-bold text-slate-400';
+      if (game.debug.godMode) {
+        godBadge.classList.remove('hidden');
+      } else {
+        godBadge.classList.add('hidden');
+      }
+    });
+
+    devHitboxToggle.addEventListener('change', (e) => { game.debug.showHitboxes = e.target.checked; });
+    devFreezeSharks.addEventListener('change', (e) => { game.debug.freezeSharks = e.target.checked; });
+    devInfiniteJump.addEventListener('change', (e) => { game.debug.infiniteJump = e.target.checked; });
+
+    document.getElementById('dev-spawn-shark').addEventListener('click', () => spawnShark(true));
+    document.getElementById('dev-add-packet').addEventListener('click', () => {
+      game.packets += 128;
+      sound.playPacket();
+      updateHUD();
+    });
+    document.getElementById('dev-skip-ch').addEventListener('click', () => {
+      if (game.chapterIndex < CHAPTERS.length - 1) {
+        game.chapterIndex++;
+        const ch = CHAPTERS[game.chapterIndex];
+        triggerStory(ch.storyText, ch.speaker, ch.avatar);
+        updateHUD();
+      }
+    });
+    document.getElementById('dev-victory').addEventListener('click', () => {
+      toggleDevPanel(false);
+      showGameOver(true);
+    });
+
+    document.getElementById('dev-reset-btn').addEventListener('click', () => {
+      game.debug.godMode = false;
+      game.debug.showHitboxes = false;
+      game.debug.freezeSharks = false;
+      game.debug.infiniteJump = false;
+      devGodToggle.checked = false;
+      devHitboxToggle.checked = false;
+      devFreezeSharks.checked = false;
+      devInfiniteJump.checked = false;
+      godBadge.classList.add('hidden');
+      document.getElementById('dev-god-val').textContent = 'OFF';
+    });
+
+    /* キーボード操作 */
+    window.addEventListener('keydown', (e) => {
+      const isD = e.code === 'KeyD' || e.key === 'd' || e.key === 'D' || e.key === 'ｄ';
+      if (isD) {
+        e.preventDefault();
+        toggleDevPanel();
+        return;
+      }
+
+      const isP = e.code === 'KeyP' || e.key === 'p' || e.key === 'P' || e.key === 'ｐ';
+      if (isP) {
+        e.preventDefault();
+        if (game.debug.panelOpen) {
+          toggleDevPanel(false);
+        } else if (game.state === 'PLAYING') {
+          game.state = 'PAUSED';
+          showPauseOverlay(true);
+        } else if (game.state === 'PAUSED') {
+          game.state = 'PLAYING';
+          showPauseOverlay(false);
+        }
+        return;
+      }
+
+      if (e.code === 'Space' || e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') {
+        e.preventDefault();
+        handleFlap();
+      }
+    });
+
+    function showPauseOverlay(isPaused) {
+      const overlay = document.getElementById('game-overlay');
+      const title = document.getElementById('overlay-title');
+      const msg = document.getElementById('overlay-msg');
+      const btn = document.getElementById('start-btn');
+      if (isPaused) {
+        overlay.style.display = 'flex';
+        title.textContent = 'TRANSMISSION PAUSED';
+        title.className = 'text-lg sm:text-xl font-bold font-pixel text-amber-400 mb-1';
+        msg.textContent = '外洋上空にて待機中。[P]キーまたは下のボタンで飛行を再開します。';
+        btn.textContent = '飛行を再開する (Resume)';
+      } else {
+        overlay.style.display = 'none';
+      }
+    }
+
+    document.getElementById('pause-btn').addEventListener('click', () => {
+      if (game.state === 'PLAYING') {
+        game.state = 'PAUSED';
+        showPauseOverlay(true);
+      } else if (game.state === 'PAUSED') {
+        game.state = 'PLAYING';
+        showPauseOverlay(false);
+      }
+    });
+
+    function handleFlap() {
+      sound.init();
+      if (game.state === 'PAUSED') {
+        game.state = 'PLAYING';
+        showPauseOverlay(false);
+        return;
+      }
+      if (game.state === 'READY' || game.state === 'GAMEOVER' || game.state === 'VICTORY') {
+        startGame();
+        return;
+      }
+      if (game.state === 'PLAYING') {
+        pigeon.vy = pigeon.flapPower;
+        sound.playFlap();
+        for (let i = 0; i < 3; i++) {
+          particles.push({
+            x: pigeon.x,
+            y: pigeon.y + pigeon.height * 0.6,
+            vx: -1.5 - Math.random() * 2,
+            vy: -0.5 + Math.random() * 1.5,
+            life: 25,
+            color: 'rgba(240, 249, 255, 0.8)',
+            size: 3
+          });
+        }
+      }
+    }
+
+    canvas.addEventListener('mousedown', (e) => { e.preventDefault(); handleFlap(); });
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleFlap(); }, { passive: false });
+
+    document.getElementById('start-btn').addEventListener('click', () => {
+      sound.init();
+      if (game.state === 'PAUSED') {
+        game.state = 'PLAYING';
+        showPauseOverlay(false);
+      } else {
+        startGame();
+      }
+    });
+
+    const soundBtn = document.getElementById('sound-btn');
+    soundBtn.addEventListener('click', () => {
+      sound.init();
+      sound.muted = !sound.muted;
+      soundBtn.textContent = sound.muted ? '🔇 音声' : '🔊 音声';
+    });
+
+    let storyTimer = null;
+    function triggerStory(text, speaker = '伝書鳩 (Avian Carrier #01)', avatar = '🕊️') {
+      if (!text) return; // セリフが空の場合は表示しない（画面を邪魔しない）
+      const box = document.getElementById('story-box');
+      if (!box) return;
+      document.getElementById('story-speaker').textContent = speaker;
+      document.getElementById('story-avatar').textContent = avatar;
+      document.getElementById('story-text').textContent = text;
+      box.classList.remove('opacity-0', 'pointer-events-none');
+      box.classList.add('opacity-100');
+      if (storyTimer) clearTimeout(storyTimer);
+      storyTimer = setTimeout(() => {
+        box.classList.add('opacity-0', 'pointer-events-none');
+        box.classList.remove('opacity-100');
+      }, 3500);
+    }
+
+    const SHARK_TYPES = {
+      LOW: {
+        name: 'LOW',
+        colorName: 'スカイブルー',
+        bodyColor: '#164e63',     // シアン・ダーク
+        bellyColor: '#cffafe',    // ペールシアン
+        accentColor: '#06b6d4',   // ネオンシアン
+        eyeColor: '#22d3ee',
+        swimSpeed: -4.3,
+        jumpPeakHeight: 110,      // 低空ホップ（上空へ逃げれば安全）
+        gravity: 0.30
+      },
+      MID: {
+        name: 'MID',
+        colorName: 'アンバーイエロー',
+        bodyColor: '#78350f',     // アンバー・ダーク
+        bellyColor: '#fef3c7',    // ペールアンバー
+        accentColor: '#f59e0b',   // ネオンアンバー
+        eyeColor: '#fbbf24',
+        swimSpeed: -4.8,
+        jumpPeakHeight: 200,      // 中空ジャンプ（中央高度を狙う）
+        gravity: 0.31
+      },
+      HIGH: {
+        name: 'HIGH',
+        colorName: 'クリムゾンレッド',
+        bodyColor: '#4c0519',     // ローズ・ダーク
+        bellyColor: '#ffe4e6',    // ペールローズ
+        accentColor: '#f43f5e',   // ネオンレッド
+        eyeColor: '#ff0033',
+        swimSpeed: -5.3,
+        jumpPeakHeight: 340,      // 最上空跳躍（画面天井まで届く）
+        gravity: 0.32
+      }
+    };
+
+    function spawnShark(force = false) {
+      const currentCh = CHAPTERS[game.chapterIndex];
+      const rate = force ? 1 : currentCh.sharkRate;
+      if (force || Math.random() < rate) {
+        const startX = canvas.width + 40;
+        const waterLevel = canvas.height - 70;
+        const triggerX = pigeon.x + 150 + Math.random() * 100;
+
+        let typeKey = 'LOW';
+        const rand = Math.random();
+        if (game.chapterIndex === 0) {
+          typeKey = rand < 0.75 ? 'LOW' : 'MID';
+        } else if (game.chapterIndex === 1) {
+          typeKey = rand < 0.45 ? 'LOW' : (rand < 0.85 ? 'MID' : 'HIGH');
+        } else {
+          typeKey = rand < 0.3 ? 'LOW' : (rand < 0.65 ? 'MID' : 'HIGH');
+        }
+
+        const typeInfo = SHARK_TYPES[typeKey];
+
+        // 画面の高さに応じて天井（最上空）まで届くよう動的計算
+        let peakHeight = typeInfo.jumpPeakHeight;
+        if (typeKey === 'HIGH') {
+          // 天井（鳩の最小高度 y=35）を完全にカバーする高さまで跳躍
+          peakHeight = Math.max(typeInfo.jumpPeakHeight, waterLevel - 20);
+        } else if (typeKey === 'MID') {
+          peakHeight = Math.max(typeInfo.jumpPeakHeight, (waterLevel - 30) * 0.62);
+        } else {
+          peakHeight = Math.max(typeInfo.jumpPeakHeight, (waterLevel - 30) * 0.35);
+        }
+
+        sharks.push({
+          x: startX,
+          y: waterLevel,
+          baseY: waterLevel,
+          width: 58,
+          height: 38,
+          state: 'SWIMMING',
+          type: typeKey,
+          config: typeInfo,
+          swimSpeed: typeInfo.swimSpeed - Math.random() * 0.8,
+          vx: typeInfo.swimSpeed,
+          vy: 0,
+          gravity: typeInfo.gravity,
+          jumpPeakHeight: peakHeight,
+          jumpTriggerX: triggerX,
+          angle: 0,
+          finSplashTimer: 0
+        });
+      }
+    }
+
+    function spawnPacket() {
+      if (Math.random() < 0.024) {
+        packets.push({
+          x: canvas.width + 20,
+          y: 75 + Math.random() * (canvas.height - 210),
+          width: 24,
+          height: 18,
+          vx: -3.2,
+          bobOffset: Math.random() * Math.PI * 2,
+          sizeKb: Math.floor(16 + Math.random() * 32)
+        });
+      }
+    }
+
+    function startGame() {
+      game.state = 'PLAYING';
+      game.chapterIndex = 0;
+      game.distance = 0;
+      game.packets = 0;
+      game.packetLoss = 0;
+      sharks = [];
+      packets = [];
+      particles = [];
+      pigeon.reset(canvas.height * 0.4);
+      document.getElementById('game-overlay').style.display = 'none';
+      const firstCh = CHAPTERS[0];
+      triggerStory(firstCh.storyText, firstCh.speaker, firstCh.avatar);
+      updateHUD();
+    }
+
+    function showGameOver(isVictory = false) {
+      game.state = isVictory ? 'VICTORY' : 'GAMEOVER';
+      const overlay = document.getElementById('game-overlay');
+      const title = document.getElementById('overlay-title');
+      const msg = document.getElementById('overlay-msg');
+      const btn = document.getElementById('start-btn');
+      
+      overlay.style.display = 'flex';
+      if (isVictory) {
+        sound.playVictory();
+        title.textContent = 'TRANSMISSION COMPLETE!';
+        title.className = 'text-lg sm:text-xl font-bold font-pixel text-emerald-400 mb-2 leading-relaxed';
+        msg.innerHTML = `
+          <div class="text-emerald-300 font-bold mb-1.5">🎉 ping 192.168.1.1: 0% packet loss!</div>
+          伝書鳩01は狂乱のサメ海峡を突破し、無事にパケット(${game.packets} KB)をメガフロート洋上ルーターへ物理配達しました！<br>
+          太平洋を挟んだ大陸間リンクが再接続され、全世界の国際通信が蘇りました。<br>
+          <span class="text-[10px] text-slate-400 font-mono-code">RFC 1149 Protocol Standard Compliant.</span>
+        `;
+        btn.textContent = 'もう一度通信する [SPACE]';
+      } else {
+        sound.playSharkChomp();
+        title.textContent = 'PACKET LOST (BITTEN)';
+        title.className = 'text-lg sm:text-xl font-bold font-pixel text-rose-500 mb-2 leading-relaxed';
+        msg.innerHTML = `
+          <div class="text-rose-400 font-bold mb-1.5">🦈 サイバーシャークにパケットごと捕食されました！</div>
+          到達距離: ${Math.floor(game.distance)} m | 輸送済データ: ${game.packets} KB<br>
+          管制「フェザー応答せよ！キャリアロストを確認。直ちに第2便の再送パケットを編成せよ！」<br>
+          <span class="text-[10px] text-slate-400 font-mono-code">Request timed out: Avian carrier destroyed.</span>
+        `;
+        btn.textContent = '再送便を発進する (Retry) [SPACE]';
+      }
+    }
+
+    function updateHUD() {
+      const currentCh = CHAPTERS[game.chapterIndex];
+      document.getElementById('chapter-badge').textContent = currentCh.title;
+      document.getElementById('packet-counter').textContent = `${game.packets} KB`;
+      document.getElementById('ping-counter').textContent = `${Math.floor(game.basePing + (game.distance * 1.6))} ms`;
+      document.getElementById('loss-counter').textContent = `${game.packetLoss}%`;
+
+      const distRemain = Math.max(0, Math.floor(game.totalGoal - game.distance));
+      document.getElementById('dist-remain').textContent = `${distRemain} m`;
+      const pct = Math.min(100, (game.distance / game.totalGoal) * 100);
+      document.getElementById('distance-progress').style.width = `${pct}%`;
+
+      const waterLevel = canvas.height - 70;
+      const altMeters = Math.max(0, Math.floor((waterLevel - pigeon.y) * 1.2));
+      document.getElementById('altitude-text').textContent = `${altMeters}m`;
+
+      document.getElementById('dev-alt').textContent = `${altMeters}m`;
+      document.getElementById('dev-sharks').textContent = sharks.length;
+    }
+
+    function update(dt) {
+      if (game.state !== 'PLAYING') return;
+
+      game.distance += 2.6;
+
+      const currentCh = CHAPTERS[game.chapterIndex];
+      if (game.distance >= currentCh.distanceGoal) {
+        if (game.chapterIndex < CHAPTERS.length - 1) {
+          game.chapterIndex++;
+          const nextCh = CHAPTERS[game.chapterIndex];
+          triggerStory(nextCh.storyText, nextCh.speaker, nextCh.avatar);
+        } else {
+          showGameOver(true);
+          return;
+        }
+      }
+
+      if (!game.debug.infiniteJump) {
+        pigeon.vy += pigeon.gravity;
+      }
+      pigeon.y += pigeon.vy;
+      pigeon.wingAngle += 0.25;
+
+      const waterLevel = canvas.height - 70;
+      if (pigeon.y + pigeon.height > waterLevel) {
+        pigeon.y = waterLevel - pigeon.height;
+        if (!game.debug.godMode) {
+          showGameOver(false);
+          return;
+        }
+      }
+
+      if (pigeon.y < 35) {
+        pigeon.y = 35;
+        pigeon.vy = 0;
+      }
+
+      if (!game.debug.freezeSharks) {
+        spawnShark();
+      }
+      spawnPacket();
+
+      for (let i = sharks.length - 1; i >= 0; i--) {
+        const s = sharks[i];
+        if (!game.debug.freezeSharks) {
+          if (s.state === 'SWIMMING') {
+            s.x += s.swimSpeed;
+            s.y = s.baseY - 6;
+            s.angle = 0;
+
+            s.finSplashTimer++;
+            if (s.finSplashTimer % 3 === 0) {
+              particles.push({
+                x: s.x + s.width * 0.7,
+                y: s.baseY - 2,
+                vx: 1.2 + Math.random() * 1.5,
+                vy: -0.8 - Math.random() * 1.5,
+                life: 14,
+                color: 'rgba(224, 242, 254, 0.75)',
+                size: 2.5
+              });
+            }
+
+            if (s.x <= s.jumpTriggerX) {
+              s.state = 'JUMPING';
+              const peakDiff = s.jumpPeakHeight;
+              const jumpVel = -Math.sqrt(2 * s.gravity * peakDiff);
+              s.vy = jumpVel;
+              s.vx = -(3.8 + Math.random() * 1.5);
+
+              for (let p = 0; p < 8; p++) {
+                particles.push({
+                  x: s.x + 20,
+                  y: s.baseY,
+                  vx: (Math.random() - 0.5) * 6,
+                  vy: -2 - Math.random() * 4,
+                  life: 22,
+                  color: s.config.accentColor,
+                  size: 3.5
+                });
+              }
+            }
+          } else {
+            // 空中大跳躍中
+            s.x += s.vx;
+            s.vy += s.gravity;
+            s.y += s.vy;
+            s.angle = Math.atan2(s.vy, Math.abs(s.vx)) * 0.65;
+
+            // 水面へ再突入
+            if (s.y > s.baseY && s.vy > 0) {
+              for (let p = 0; p < 6; p++) {
+                particles.push({
+                  x: s.x + 20,
+                  y: s.baseY,
+                  vx: (Math.random() - 0.5) * 5,
+                  vy: -Math.random() * 3.5,
+                  life: 20,
+                  color: 'rgba(186, 230, 253, 0.8)',
+                  size: 3
+                });
+              }
+              sharks.splice(i, 1);
+              continue;
+            }
+          }
+        }
+
+        // 衝突判定（マージンを調整し回避しやすく改善）
+        if (!game.debug.godMode) {
+          const hitW = s.state === 'SWIMMING' ? s.width - 24 : s.width - 20;
+          const hitH = s.state === 'SWIMMING' ? 18 : s.height - 18;
+          const hit = checkCollision(
+            pigeon.x + 8, pigeon.y + 8, pigeon.width - 16, pigeon.height - 16,
+            s.x + 10, s.y + (s.state === 'SWIMMING' ? -8 : 8), hitW, hitH
+          );
+          if (hit) {
+            showGameOver(false);
+            return;
+          }
+        }
+
+        if (s.x < -90) sharks.splice(i, 1);
+      }
+
+      // パケット更新
+      for (let i = packets.length - 1; i >= 0; i--) {
+        const p = packets[i];
+        p.x += p.vx;
+        p.bobOffset += 0.08;
+
+        const hit = checkCollision(
+          pigeon.x, pigeon.y, pigeon.width, pigeon.height,
+          p.x, p.y + Math.sin(p.bobOffset) * 4, p.width, p.height
+        );
+        if (hit) {
+          game.packets += p.sizeKb;
+          sound.playPacket();
+          for (let k = 0; k < 6; k++) {
+            particles.push({
+              x: p.x,
+              y: p.y,
+              vx: (Math.random() - 0.5) * 3,
+              vy: (Math.random() - 0.5) * 3,
+              life: 20,
+              color: '#38bdf8',
+              size: 3
+            });
+          }
+          packets.splice(i, 1);
+          updateHUD();
+          continue;
+        }
+
+        if (p.x < -30) {
+          game.packetLoss = Math.min(100, game.packetLoss + 1);
+          packets.splice(i, 1);
+          updateHUD();
+        }
+      }
+
+      // パーティクル更新
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.life--;
+        if (pt.life <= 0) particles.splice(i, 1);
+      }
+
+      // 雲
+      clouds.forEach(c => {
+        c.x -= c.speed;
+        if (c.x < -120) c.x = canvas.width + 100;
+      });
+
+      updateHUD();
+    }
+
+    function checkCollision(x1, y1, w1, h1, x2, y2, w2, h2) {
+      return x1 < x2 + w2 && x1 + w1 > x2 && y1 < y2 + h2 && y1 + h1 > y2;
+    }
+
+    function render() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // 空のグラデーション（チャプター別天候）
+      const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      if (game.chapterIndex === 0) {
+        skyGrad.addColorStop(0, '#0284c7');
+        skyGrad.addColorStop(0.65, '#7dd3fc');
+        skyGrad.addColorStop(0.85, '#bae6fd');
+      } else if (game.chapterIndex === 1) {
+        skyGrad.addColorStop(0, '#0369a1');
+        skyGrad.addColorStop(0.65, '#38bdf8');
+        skyGrad.addColorStop(0.85, '#e0f2fe');
+      } else if (game.chapterIndex === 2) {
+        skyGrad.addColorStop(0, '#0f172a');
+        skyGrad.addColorStop(0.65, '#334155');
+        skyGrad.addColorStop(0.85, '#64748b');
+      } else {
+        skyGrad.addColorStop(0, '#3730a3');
+        skyGrad.addColorStop(0.5, '#c026d3');
+        skyGrad.addColorStop(0.85, '#fde047');
+      }
+      ctx.fillStyle = skyGrad;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // 雲
+      ctx.fillStyle = game.chapterIndex === 2 ? 'rgba(71, 85, 105, 0.75)' : 'rgba(255, 255, 255, 0.75)';
+      clouds.forEach(c => drawCloud(c.x, c.y, c.scale));
+
+      // 最終章（Ch.4）ゴール目標：メガフロート洋上ルーター
+      if (game.chapterIndex === 3) drawMegaFloatRouter();
+
+      // パケット
+      packets.forEach(p => drawPacketItem(p.x, p.y + Math.sin(p.bobOffset) * 4));
+
+      // 鳩
+      drawPigeon(pigeon.x, pigeon.y);
+
+      // サメ
+      sharks.forEach(s => drawShark(s));
+
+      // 海
+      drawOcean();
+
+      // パーティクル
+      particles.forEach(pt => {
+        ctx.fillStyle = pt.color;
+        ctx.beginPath();
+        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // 当たり判定枠（デバッグ用）
+      if (game.debug.showHitboxes) {
+        ctx.strokeStyle = '#ef4444';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(pigeon.x + 6, pigeon.y + 6, pigeon.width - 12, pigeon.height - 12);
+        sharks.forEach(s => {
+          ctx.strokeStyle = '#f59e0b';
+          ctx.strokeRect(s.x + 8, s.y + 8, s.width - 16, s.height - 16);
+        });
+        packets.forEach(p => {
+          ctx.strokeStyle = '#10b981';
+          ctx.strokeRect(p.x, p.y + Math.sin(p.bobOffset) * 4, p.width, p.height);
+        });
+      }
+    }
+
+    function drawPigeon(x, y) {
+      ctx.save();
+      ctx.translate(x + pigeon.width / 2, y + pigeon.height / 2);
+      const tilt = Math.max(-0.4, Math.min(0.5, pigeon.vy * 0.06));
+      ctx.rotate(tilt);
+
+      if (game.debug.godMode) {
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 14;
+      }
+
+      // 胴体
+      ctx.fillStyle = '#e2e8f0';
+      ctx.beginPath();
+      ctx.ellipse(0, 0, 17, 11, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 首元の青緑光沢
+      ctx.fillStyle = '#6ee7b7';
+      ctx.beginPath();
+      ctx.ellipse(7, -2, 7, 8, 0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 頭部
+      ctx.fillStyle = '#cbd5e1';
+      ctx.beginPath();
+      ctx.arc(13, -7, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      // アビエーション・バイザー (続編専用装備)
+      ctx.fillStyle = '#0284c7';
+      ctx.fillRect(11, -10, 8, 4);
+      ctx.fillStyle = '#38bdf8';
+      ctx.fillRect(13, -9, 4, 2);
+
+      // くちばし
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath();
+      ctx.moveTo(18, -6);
+      ctx.lineTo(25, -4);
+      ctx.lineTo(18, -3);
+      ctx.closePath();
+      ctx.fill();
+
+      // 羽ばたく翼
+      const flap = Math.sin(pigeon.wingAngle) * 9;
+      ctx.fillStyle = '#94a3b8';
+      ctx.beginPath();
+      ctx.moveTo(-6, 0);
+      ctx.quadraticCurveTo(-12, -8 + flap, -2, -12 + flap);
+      ctx.quadraticCurveTo(4, -4, 2, 2);
+      ctx.closePath();
+      ctx.fill();
+
+      // 脚部：耐圧チタン製IPパケットカプセル
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(-2, 7, 13, 8);
+      ctx.strokeRect(-2, 7, 13, 8);
+      ctx.fillStyle = '#0284c7';
+      ctx.font = 'bold 5px monospace';
+      ctx.fillText('IP', 2, 13);
+
+      ctx.restore();
+    }
+
+    function drawShark(s) {
+      ctx.save();
+      const cfg = s.config || SHARK_TYPES.MID;
+
+      if (s.state === 'SWIMMING') {
+        // 水面遊泳モード：すっきりとした背びれ描画（過剰な警告オーラを削除）
+        ctx.translate(s.x + s.width / 2, s.baseY);
+
+        // 水中をうごめくシンプルな魚影
+        ctx.fillStyle = cfg.bodyColor;
+        ctx.globalAlpha = 0.35;
+        ctx.beginPath();
+        ctx.ellipse(-4, 8, 22, 6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1.0;
+
+        // 背びれ本体（タイプカラー）
+        ctx.fillStyle = cfg.bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(8, 2);
+        ctx.lineTo(-6, -21);
+        ctx.lineTo(-14, 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // 背びれのエッジライン（自然に色を見分けるためのアクセント）
+        ctx.strokeStyle = cfg.accentColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(7, 2);
+        ctx.lineTo(-6, -20);
+        ctx.stroke();
+
+      } else {
+        // 大跳躍モード：空中に飛び出した全身（色で高度が判別可能）
+        ctx.translate(s.x + s.width / 2, s.y + s.height / 2);
+        ctx.rotate(s.angle);
+
+        // サメの巨大な魚体（タイプ別カラー）
+        ctx.fillStyle = cfg.bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-26, 0);
+        ctx.quadraticCurveTo(-10, -19, 16, -13);
+        ctx.lineTo(28, 2);
+        ctx.lineTo(14, 11);
+        ctx.quadraticCurveTo(-8, 15, -26, 0);
+        ctx.closePath();
+        ctx.fill();
+
+        // 腹部（ペールトーン）
+        ctx.fillStyle = cfg.bellyColor;
+        ctx.beginPath();
+        ctx.moveTo(-16, 2);
+        ctx.quadraticCurveTo(0, 11, 14, 11);
+        ctx.lineTo(6, 6);
+        ctx.quadraticCurveTo(-6, 4, -16, 2);
+        ctx.closePath();
+        ctx.fill();
+
+        // 背びれ
+        ctx.fillStyle = cfg.bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-4, -15);
+        ctx.lineTo(-13, -28);
+        ctx.lineTo(5, -13);
+        ctx.closePath();
+        ctx.fill();
+
+        // 背びれのネオンストライプ（識別用アクセント）
+        ctx.strokeStyle = cfg.accentColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-2, -16);
+        ctx.lineTo(-10, -26);
+        ctx.stroke();
+
+        // 発光アイ（タイプ別アイカラー）
+        ctx.fillStyle = cfg.eyeColor;
+        ctx.beginPath();
+        ctx.arc(17, -4, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.arc(17.5, -4, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+
+        // 鋭い牙
+        ctx.fillStyle = '#ffffff';
+        for (let t = 0; t < 4; t++) {
+          ctx.beginPath();
+          ctx.moveTo(13 + t * 3, 5);
+          ctx.lineTo(14.5 + t * 3, 9);
+          ctx.lineTo(16 + t * 3, 5);
+          ctx.fill();
+        }
+
+        // 尾びれ
+        ctx.fillStyle = cfg.bodyColor;
+        ctx.beginPath();
+        ctx.moveTo(-24, 0);
+        ctx.lineTo(-36, -13);
+        ctx.lineTo(-30, 0);
+        ctx.lineTo(-36, 13);
+        ctx.closePath();
+        ctx.fill();
+
+        // 尾びれのアクセントライン
+        ctx.strokeStyle = cfg.accentColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-26, 0);
+        ctx.lineTo(-34, -10);
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
+    function drawPacketItem(x, y) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.shadowColor = '#38bdf8';
+      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#f8fafc';
+      ctx.strokeStyle = '#0284c7';
+      ctx.lineWidth = 1.5;
+      ctx.fillRect(0, 0, 24, 16);
+      ctx.strokeRect(0, 0, 24, 16);
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(12, 9);
+      ctx.lineTo(24, 0);
+      ctx.stroke();
+
+      ctx.fillStyle = '#0284c7';
+      ctx.font = 'bold 6px monospace';
+      ctx.fillText('1149', 4, 13);
+      ctx.restore();
+    }
+
+    function drawOcean() {
+      const waterLevel = canvas.height - 70;
+      const oceanGrad = ctx.createLinearGradient(0, waterLevel, 0, canvas.height);
+      oceanGrad.addColorStop(0, '#0369a1');
+      oceanGrad.addColorStop(0.3, '#075985');
+      oceanGrad.addColorStop(1, '#0c4a6e');
+      ctx.fillStyle = oceanGrad;
+      ctx.fillRect(0, waterLevel, canvas.width, 70);
+
+      // 白波
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.4)';
+      ctx.beginPath();
+      ctx.moveTo(0, canvas.height);
+      ctx.lineTo(0, waterLevel);
+      
+      const time = performance.now() * 0.003;
+      for (let x = 0; x <= canvas.width + 20; x += 20) {
+        const waveY = waterLevel + Math.sin(x * 0.03 + time) * 4;
+        ctx.lineTo(x, waveY);
+      }
+      ctx.lineTo(canvas.width, canvas.height);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let x = 0; x <= canvas.width + 20; x += 30) {
+        const waveY = waterLevel + Math.sin(x * 0.03 + time) * 4;
+        ctx.moveTo(x, waveY);
+        ctx.lineTo(x + 12, waveY);
+      }
+      ctx.stroke();
+    }
+
+    function drawCloud(x, y, scale) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.scale(scale, scale);
+      ctx.beginPath();
+      ctx.arc(0, 0, 16, 0, Math.PI * 2);
+      ctx.arc(14, -6, 18, 0, Math.PI * 2);
+      ctx.arc(32, 0, 16, 0, Math.PI * 2);
+      ctx.arc(20, 8, 14, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function drawMegaFloatRouter() {
+      const towerX = canvas.width - 150;
+      const towerY = canvas.height - 240;
+
+      // 洋上メガフロート基礎土台
+      ctx.fillStyle = '#1e293b';
+      ctx.fillRect(towerX - 25, canvas.height - 75, 140, 25);
+      ctx.fillStyle = '#f59e0b';
+      ctx.fillRect(towerX - 25, canvas.height - 78, 140, 4);
+
+      // 受信用アンテナタワー
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(towerX + 30, towerY + 30, 22, 140);
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(towerX + 20, towerY + 20, 42, 15);
+
+      // 受信LED点滅ランプ
+      const blink = Math.sin(performance.now() * 0.008) > 0;
+      ctx.fillStyle = blink ? '#22c55e' : '#14532d';
+      ctx.beginPath();
+      ctx.arc(towerX + 41, towerY + 12, 7, 0, Math.PI * 2);
+      ctx.fill();
+
+      // 看板：IP ROUTER #01
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(towerX - 6, towerY + 70, 94, 22);
+      ctx.strokeStyle = '#38bdf8';
+      ctx.strokeRect(towerX - 6, towerY + 70, 94, 22);
+      ctx.fillStyle = '#38bdf8';
+      ctx.font = 'bold 8px monospace';
+      ctx.fillText('IP ROUTER #01', towerX - 1, towerY + 84);
+    }
+
+    let lastTime = performance.now();
+    let frameCounter = 0;
+    let fpsTimer = 0;
+
+    function gameLoop(currentTime) {
+      const dt = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      frameCounter++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        const fps = Math.round(frameCounter / fpsTimer);
+        document.getElementById('dev-fps').textContent = fps;
+        frameCounter = 0;
+        fpsTimer = 0;
+      }
+
+      update(dt);
+      render();
+      requestAnimationFrame(gameLoop);
+    }
+
+    window.onload = function() {
+      resizeCanvas();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>
