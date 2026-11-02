@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>P教官の爆走！旗揚げパニック</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@600;800;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'M PLUS Rounded 1c', sans-serif;
+      touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* アニメーション用キーフレーム */
+    @keyframes bobble {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-6px); }
+    }
+    .animate-bobble {
+      animation: bobble 1.8s infinite ease-in-out;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px) rotate(-3deg); }
+      40%, 80% { transform: translateX(8px) rotate(3deg); }
+    }
+    .animate-shake {
+      animation: shake 0.4s ease-in-out;
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.7); opacity: 0; }
+      70% { transform: scale(1.08); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+    .animate-pop {
+      animation: popIn 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    }
+
+    /* 旗の動きトランジション */
+    .flag-rod {
+      transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: bottom center;
+    }
+    .flag-up {
+      transform: translateY(-24px) rotate(0deg);
+    }
+    .flag-down {
+      transform: translateY(22px) rotate(35deg);
+    }
+    .flag-down-right {
+      transform: translateY(22px) rotate(-35deg);
+    }
+    
+    /* プレイヤーの旗・腕の物理アニメーション */
+    .player-flag-rod {
+      transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+      transform-origin: bottom center;
+    }
+    .player-flag-up {
+      transform: translateY(-20px) rotate(0deg);
+    }
+    .player-flag-down {
+      transform: translateY(18px) rotate(32deg);
+    }
+    .player-flag-down-right {
+      transform: translateY(18px) rotate(-32deg);
+    }
+
+    @keyframes cheerHop {
+      0%, 100% { transform: translateY(0) scale(1); }
+      40% { transform: translateY(-12px) scale(1.05); }
+      70% { transform: translateY(2px) scale(0.98); }
+    }
+    .animate-hop {
+      animation: cheerHop 0.35s ease-out;
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-2 sm:p-4 select-none overflow-x-hidden">
+
+  <!-- ゲーム全体コンテナ（最大幅スマホ〜タブレット対応） -->
+  <div class="w-full max-w-md mx-auto flex flex-col justify-between flex-1 relative">
+
+    <!-- ヘッダー：スコア、ライフ、コンボ -->
+    <header class="bg-slate-800/90 backdrop-blur border border-slate-700/80 rounded-2xl p-3 shadow-lg flex items-center justify-between mb-2">
+      <!-- ライフ（お手つき） -->
+      <div class="flex flex-col">
+        <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">LIVES</span>
+        <div id="livesContainer" class="flex gap-1 text-rose-500 text-lg">
+          <span id="heart1">❤️</span>
+          <span id="heart2">❤️</span>
+          <span id="heart3">❤️</span>
+        </div>
+      </div>
+
+      <!-- スコア ＆ レベル / 難易度バッジ -->
+      <div class="text-center">
+        <div class="flex items-center justify-center gap-1.5">
+          <span id="diffBadge" class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">EASY</span>
+          <span class="text-[10px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30" id="levelBadge">Lv.1</span>
+          <span id="comboBadge" class="hidden text-[10px] font-black px-2 py-0.5 rounded-full bg-cyan-500 text-slate-900 animate-pulse">0 COMBO!</span>
+        </div>
+        <div class="text-2xl font-black tracking-tight text-white mt-0.5 font-mono" id="scoreDisplay">0000</div>
+      </div>
+
+      <!-- 音声/設定トグル -->
+      <div class="flex gap-1.5 items-center">
+        <button id="voiceToggleBtn" class="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 text-xs transition active:scale-95" title="音声合成 ON/OFF">
+          🔊
+        </button>
+        <button id="soundToggleBtn" class="p-2 rounded-xl bg-slate-700/80 hover:bg-slate-600 text-slate-200 text-xs transition active:scale-95" title="SE効果音 ON/OFF">
+          🔔
+        </button>
+      </div>
+    </header>
+
+    <!-- タイムゲージ（制限時間プログレスバー） -->
+    <div class="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden border border-slate-700 mb-2">
+      <div id="timeProgressBar" class="h-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500 transition-all duration-75" style="width: 100%;"></div>
+    </div>
+
+    <!-- P教官ステージ（キャラクター＋吹き出し） -->
+    <main class="relative bg-gradient-to-b from-slate-800 to-slate-800/60 border border-slate-700 rounded-3xl p-4 flex flex-col items-center justify-center shadow-xl my-auto min-h-[260px] overflow-visible">
+
+      <!-- P教官の指示吹き出し -->
+      <div id="speechBubble" class="relative z-20 mb-3 w-11/12 bg-white text-slate-900 font-black px-4 py-3 rounded-2xl shadow-xl text-center border-4 border-amber-400 min-h-[58px] flex items-center justify-center animate-pop">
+        <span id="instructionText" class="text-lg sm:text-xl tracking-tight leading-snug">
+          「ゲームスタート」を押してね！
+        </span>
+        <!-- 吹き出しの三角ヒゲ -->
+        <div class="absolute -bottom-3 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[12px] border-t-amber-400"></div>
+      </div>
+
+      <!-- P教官キャラクターSVG & 旗 -->
+      <div id="characterWrapper" class="relative w-48 h-40 flex items-center justify-center animate-bobble">
+
+        <!-- 左手：赤旗（向かって左） -->
+        <div id="instructorRedArm" class="absolute left-2 bottom-6 flag-rod flex flex-col items-center flag-down transition-opacity duration-200">
+          <!-- 旗の布 -->
+          <div class="w-12 h-8 bg-rose-600 rounded-sm shadow-md border border-rose-800 flex items-center justify-center text-[10px] font-black text-white">赤</div>
+          <!-- 棒 -->
+          <div class="w-1.5 h-16 bg-amber-800 rounded-full"></div>
+        </div>
+
+        <!-- P教官の本体（アルファベットの「P」がモチーフのピクトグラム教官） -->
+        <div class="relative z-10 flex flex-col items-center">
+          <!-- 帽子（船長・教官帽） -->
+          <div class="relative -mb-1 z-20 flex flex-col items-center">
+            <div class="w-12 h-3.5 bg-slate-900 rounded-t-lg border-t-2 border-amber-400"></div>
+            <div class="w-16 h-1.5 bg-amber-400 rounded-full -mt-0.5 shadow-sm"></div>
+          </div>
+
+          <!-- 頭＆顔（Pの文字を活かした丸み） -->
+          <div id="instructorFace" class="w-16 h-16 rounded-full bg-amber-200 border-4 border-slate-900 flex flex-col items-center justify-center shadow-md relative transition-transform">
+            <!-- 目 -->
+            <div id="faceEyes" class="flex gap-3 mb-1">
+              <div class="w-2.5 h-3 bg-slate-900 rounded-full"></div>
+              <div class="w-2.5 h-3 bg-slate-900 rounded-full"></div>
+            </div>
+            <!-- 口 -->
+            <div id="faceMouth" class="w-3.5 h-1.5 bg-rose-500 rounded-full"></div>
+            <!-- ほっぺ -->
+            <div class="absolute w-2 h-1.5 bg-rose-300 rounded-full left-2 bottom-4"></div>
+            <div class="absolute w-2 h-1.5 bg-rose-300 rounded-full right-2 bottom-4"></div>
+          </div>
+
+          <!-- 胴体（巨大なアルファベット "P" のシルエット） -->
+          <div class="relative -mt-1 flex items-center justify-center">
+            <div class="w-12 h-14 bg-indigo-600 rounded-xl border-2 border-slate-900 flex items-center justify-center shadow-inner">
+              <span class="text-3xl font-black text-amber-300 select-none">P</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右手：白旗（向かって右） -->
+        <div id="instructorWhiteArm" class="absolute right-2 bottom-6 flag-rod flex flex-col items-center flag-down-right transition-opacity duration-200">
+          <!-- 旗の布 -->
+          <div class="w-12 h-8 bg-slate-100 rounded-sm shadow-md border border-slate-300 flex items-center justify-center text-[10px] font-black text-slate-800">白</div>
+          <!-- 棒 -->
+          <div class="w-1.5 h-16 bg-amber-800 rounded-full"></div>
+        </div>
+
+        <!-- 旗非表示時の「？」マーク表示（ノーマル/ハード用） -->
+        <div id="hiddenFlagsCover" class="hidden absolute -bottom-1 flex gap-12 z-20 pointer-events-none">
+          <span class="text-slate-500/70 font-black text-lg bg-slate-900/60 px-2 py-0.5 rounded-full border border-slate-700">❓</span>
+          <span class="text-slate-500/70 font-black text-lg bg-slate-900/60 px-2 py-0.5 rounded-full border border-slate-700">❓</span>
+        </div>
+      </div>
+
+      <!-- 判定フィードバックオーバーレイ（GOOD / MISS） -->
+      <div id="judgeOverlay" class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 transition-opacity duration-200 z-30">
+        <span id="judgeText" class="text-4xl font-black drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] px-6 py-2 rounded-2xl bg-black/60">
+          CLEAR!
+        </span>
+      </div>
+    </main>
+
+    <!-- プレイヤーキャラクター ＆ 手元旗アニメーションステージ -->
+    <div class="relative bg-slate-800/80 border border-slate-700/80 rounded-2xl p-2 my-2 shadow-inner flex flex-col items-center overflow-hidden">
+      
+      <!-- ラベル＆状態ミニバッジ -->
+      <div class="w-full flex items-center justify-between px-3 text-[11px] font-bold text-slate-400 mb-1">
+        <span class="flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+          <span>あなた（挑戦者）</span>
+        </span>
+        <div class="flex gap-2">
+          <span id="playerRedStatus" class="px-2 py-0.5 rounded-md bg-rose-950 text-rose-300 border border-rose-800 text-[10px]">赤: 下げ</span>
+          <span id="playerWhiteStatus" class="px-2 py-0.5 rounded-md bg-slate-700 text-slate-300 border border-slate-600 text-[10px]">白: 下げ</span>
+        </div>
+      </div>
+
+      <!-- プレイヤーアバター本体と手元の旗 -->
+      <div id="playerAvatarWrapper" class="relative w-44 h-24 flex items-center justify-center transition-transform">
+        
+        <!-- プレイヤー左手：赤旗（向かって左） -->
+        <div id="playerRedArm" class="absolute left-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-down z-10">
+          <div class="w-10 h-7 bg-rose-600 rounded shadow border border-rose-400 flex items-center justify-center text-[9px] font-black text-white">赤</div>
+          <div class="w-1.5 h-12 bg-amber-700 rounded-full"></div>
+        </div>
+
+        <!-- プレイヤーの顔・身体アバター -->
+        <div class="relative z-20 flex flex-col items-center">
+          <!-- キャップ帽子 -->
+          <div class="w-10 h-2.5 bg-cyan-600 rounded-t-md -mb-0.5"></div>
+          <div class="w-13 h-1 bg-cyan-400 rounded-full shadow-sm"></div>
+
+          <!-- 顔 -->
+          <div id="playerFace" class="w-12 h-12 rounded-full bg-amber-100 border-2 border-slate-800 flex flex-col items-center justify-center shadow">
+            <!-- プレイヤー目 -->
+            <div id="playerEyes" class="flex gap-2.5 mb-1">
+              <div class="w-2 h-2.5 bg-slate-800 rounded-full"></div>
+              <div class="w-2 h-2.5 bg-slate-800 rounded-full"></div>
+            </div>
+            <!-- 口 -->
+            <div id="playerMouth" class="w-2.5 h-1 bg-rose-400 rounded-full"></div>
+          </div>
+
+          <!-- 体（制服） -->
+          <div class="w-11 h-8 bg-cyan-600 rounded-b-xl border-t border-cyan-400 flex items-center justify-center -mt-1 shadow-inner">
+            <span class="text-[9px] font-black text-white/90 tracking-tighter">YOU</span>
+          </div>
+        </div>
+
+        <!-- プレイヤー右手：白旗（向かって右） -->
+        <div id="playerWhiteArm" class="absolute right-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-down-right z-10">
+          <div class="w-10 h-7 bg-slate-100 rounded shadow border border-slate-300 flex items-center justify-center text-[9px] font-black text-slate-800">白</div>
+          <div class="w-1.5 h-12 bg-amber-700 rounded-full"></div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- 操作パネル（スマホタッチ ＆ PCキーボード） -->
+    <footer class="grid grid-cols-2 gap-2 sm:gap-3">
+      
+      <!-- 赤旗 操作ブロック（左側） -->
+      <div class="bg-rose-950/40 border-2 border-rose-600/40 rounded-2xl p-2 sm:p-3 flex flex-col gap-2 shadow-lg">
+        <div class="flex justify-between items-center px-1">
+          <span class="text-xs font-extrabold text-rose-400">🔴 赤旗操作</span>
+          <span class="text-[10px] text-rose-300/70 font-mono hidden sm:inline">[Q / A キー]</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btnRedUp" onclick="setPlayerFlag('red', true)" class="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-b from-rose-500 to-rose-600 hover:from-rose-400 hover:to-rose-500 active:scale-95 transition shadow-lg border border-rose-400 text-white font-black">
+            <span class="text-xl sm:text-2xl group-active:-translate-y-1 transition-transform">▲</span>
+            <span class="text-xs sm:text-sm mt-0.5">上げる</span>
+          </button>
+          <button id="btnRedDown" onclick="setPlayerFlag('red', false)" class="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-b from-rose-800 to-rose-900 hover:from-rose-700 hover:to-rose-800 active:scale-95 transition shadow-lg border border-rose-700 text-rose-200 font-bold">
+            <span class="text-xl sm:text-2xl group-active:translate-y-1 transition-transform">▼</span>
+            <span class="text-xs sm:text-sm mt-0.5">下げる</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 白旗 操作ブロック（右側） -->
+      <div class="bg-slate-800/60 border-2 border-slate-600/50 rounded-2xl p-2 sm:p-3 flex flex-col gap-2 shadow-lg">
+        <div class="flex justify-between items-center px-1">
+          <span class="text-xs font-extrabold text-slate-200">⚪ 白旗操作</span>
+          <span class="text-[10px] text-slate-400 font-mono hidden sm:inline">[O / L キー]</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2">
+          <button id="btnWhiteUp" onclick="setPlayerFlag('white', true)" class="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-b from-slate-100 to-slate-200 hover:from-white hover:to-slate-100 active:scale-95 transition shadow-lg border border-white text-slate-900 font-black">
+            <span class="text-xl sm:text-2xl group-active:-translate-y-1 transition-transform">▲</span>
+            <span class="text-xs sm:text-sm mt-0.5">上げる</span>
+          </button>
+          <button id="btnWhiteDown" onclick="setPlayerFlag('white', false)" class="group flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl bg-gradient-to-b from-slate-700 to-slate-800 hover:from-slate-600 hover:to-slate-700 active:scale-95 transition shadow-lg border border-slate-600 text-slate-200 font-bold">
+            <span class="text-xl sm:text-2xl group-active:translate-y-1 transition-transform">▼</span>
+            <span class="text-xs sm:text-sm mt-0.5">下げる</span>
+          </button>
+        </div>
+      </div>
+
+    </footer>
+
+    <!-- スタート ＆ ゲームオーバー画面モーダル -->
+    <div id="startModal" class="absolute inset-0 bg-slate-950/85 backdrop-blur-md rounded-3xl z-40 flex flex-col items-center justify-center p-6 text-center">
+      <div class="w-20 h-20 bg-gradient-to-tr from-amber-400 to-orange-500 rounded-3xl flex items-center justify-center shadow-2xl mb-3 rotate-3">
+        <span class="text-4xl font-black text-slate-900">P</span>
+      </div>
+      <h1 class="text-2xl sm:text-3xl font-black text-white mb-1">
+        P教官の旗揚げパニック！
+      </h1>
+      <p class="text-xs sm:text-sm text-slate-300 mb-3 max-w-xs leading-relaxed">
+        指示を聞いて素早く旗を上げ下げしよう！お手つき3回で終了！
+      </p>
+
+      <!-- 難易度セレクター -->
+      <div class="w-full bg-slate-900/90 border border-slate-700 rounded-2xl p-3 mb-3 text-left">
+        <div class="text-xs font-bold text-amber-400 mb-2 flex items-center justify-between">
+          <span>🎯 難易度を選択</span>
+          <span id="diffDesc" class="text-[10px] text-slate-400">教官の旗が見える入門編</span>
+        </div>
+        <div class="grid grid-cols-3 gap-2">
+          <button type="button" onclick="selectDifficulty('easy')" id="diffBtnEasy" class="py-2 rounded-xl font-black text-xs border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300 transition">
+            イージー
+          </button>
+          <button type="button" onclick="selectDifficulty('normal')" id="diffBtnNormal" class="py-2 rounded-xl font-black text-xs border border-slate-700 bg-slate-800 text-slate-400 hover:text-white transition">
+            ノーマル
+          </button>
+          <button type="button" onclick="selectDifficulty('hard')" id="diffBtnHard" class="py-2 rounded-xl font-black text-xs border border-slate-700 bg-slate-800 text-slate-400 hover:text-white transition">
+            ハード
+          </button>
+        </div>
+      </div>
+
+      <div class="bg-slate-900/80 border border-slate-700 rounded-2xl p-2.5 w-full mb-4 text-left text-xs text-slate-300 space-y-1">
+        <div class="font-bold text-slate-400 text-[11px]">💡 操作キー:</div>
+        <div class="grid grid-cols-2 gap-1 text-[11px]">
+          <div>[Q] 赤上げる / [A] 赤下げる</div>
+          <div>[O] 白上げる / [L] 白下げる</div>
+        </div>
+      </div>
+
+      <button id="btnStartGame" onclick="startGame()" class="w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 text-slate-950 font-black text-lg tracking-wider shadow-xl hover:brightness-110 active:scale-95 transition transform">
+        ゲームスタート！
+      </button>
+
+      <div class="mt-3 text-[11px] text-slate-400">
+        最高ハイスコア: <span id="highScoreText" class="text-amber-400 font-mono font-bold">0</span> 点
+      </div>
+    </div>
+
+    <!-- ゲームオーバー専用モーダル -->
+    <div id="gameOverModal" class="hidden absolute inset-0 bg-slate-950/90 backdrop-blur-md rounded-3xl z-40 flex flex-col items-center justify-center p-6 text-center animate-pop">
+      <div class="text-5xl mb-2">😵‍💫</div>
+      <h2 class="text-2xl font-black text-rose-500 mb-1">GAME OVER</h2>
+      <p id="gameOverComment" class="text-sm text-slate-300 mb-4">お手つきが3回に達しました！</p>
+
+      <div class="bg-slate-900 border border-slate-700 rounded-2xl p-4 w-full mb-5">
+        <div class="text-xs text-slate-400 mb-1">FINAL SCORE</div>
+        <div id="finalScoreDisplay" class="text-4xl font-black text-amber-400 font-mono mb-2">0</div>
+        <div class="text-xs text-slate-300" id="finalTitleDisplay">称号: 見習い水兵</div>
+      </div>
+
+      <div class="w-full flex flex-col gap-3">
+        <button onclick="startGame()" class="w-full py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-base shadow-xl active:scale-95 transition">
+          もう一度挑戦する！
+        </button>
+
+        <button onclick="returnToStartModal()" class="w-full py-3 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold text-sm border border-slate-600 shadow-md active:scale-95 transition">
+          🎯 難易度を変えて挑戦する
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    /* ====================================================================
+       1. サウンドエンジン（Web Audio API + Web Speech API + Fallback）
+       ==================================================================== */
+    let audioCtx = null;
+    let isSoundEnabled = true;
+    let isVoiceEnabled = true;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      }
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    // シンセ効果音ジェネレーター
+    function playSE(type) {
+      if (!isSoundEnabled) return;
+      try {
+        const ctx = getAudioContext();
+        if (!ctx) return;
+        const now = ctx.currentTime;
+
+        if (type === 'click') {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(440, now);
+          osc.frequency.exponentialRampToValueAtTime(880, now + 0.05);
+          gain.gain.setValueAtTime(0.15, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.05);
+        } else if (type === 'correct') {
+          // ピンポン♪（2音和音）
+          const osc1 = ctx.createOscillator();
+          const gain1 = ctx.createGain();
+          osc1.frequency.setValueAtTime(659.25, now); // E5
+          gain1.gain.setValueAtTime(0.2, now);
+          gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.25);
+          osc1.connect(gain1);
+          gain1.connect(ctx.destination);
+          osc1.start(now);
+          osc1.stop(now + 0.25);
+
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.frequency.setValueAtTime(880, now + 0.12); // A5
+          gain2.gain.setValueAtTime(0.2, now + 0.12);
+          gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.start(now + 0.12);
+          osc2.stop(now + 0.45);
+        } else if (type === 'wrong') {
+          // ブブー！（低音ノコギリ波）
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(140, now);
+          osc.frequency.setValueAtTime(125, now + 0.12);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.4);
+        } else if (type === 'gameover') {
+          // 敗北ジングル
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(320, now);
+          osc.frequency.exponentialRampToValueAtTime(90, now + 0.6);
+          gain.gain.setValueAtTime(0.25, now);
+          gain.gain.exponentialRampToValueAtTime(0.01, now + 0.65);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.65);
+        } else if (type === 'levelUp') {
+          // レベルアップファンファーレ
+          [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.frequency.setValueAtTime(freq, now + i * 0.08);
+            gain.gain.setValueAtTime(0.18, now + i * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.08 + 0.15);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.08);
+            osc.stop(now + i * 0.08 + 0.15);
+          });
+        }
+      } catch (e) {
+        console.warn('Audio SE Error:', e);
+      }
+    }
+
+    // 音声発話（Web Speech API ＆ 音声ファイルフォールバック構造）
+    let currentSpeechUtterance = null;
+    function speakCommand(text, soundKey, currentLevel) {
+      if (!isVoiceEnabled) return;
+
+      // 1. 自作音声ファイル（./sounds/{soundKey}.mp3）が存在する場合は優先再生を試行
+      const audioPath = `./sounds/${soundKey}.mp3`;
+      const customAudio = new Audio(audioPath);
+      let loaded = false;
+
+      const fallbackTimer = setTimeout(() => {
+        if (!loaded) speakViaSpeechAPI(text, currentLevel);
+      }, 150);
+
+      customAudio.oncanplaythrough = () => {
+        loaded = true;
+        clearTimeout(fallbackTimer);
+        customAudio.play().catch(() => speakViaSpeechAPI(text, currentLevel));
+      };
+      customAudio.onerror = () => {
+        if (!loaded) {
+          loaded = true;
+          clearTimeout(fallbackTimer);
+          speakViaSpeechAPI(text, currentLevel);
+        }
+      };
+      customAudio.load();
+    }
+
+    function speakViaSpeechAPI(text, currentLevel) {
+      if (!('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel(); // 連続詰まりをリセット
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+
+        // レベルに応じてテンポが上がる（早口になる）
+        const rateFactor = Math.min(1.0 + (currentLevel - 1) * 0.12, 1.7);
+        utter.rate = rateFactor;
+        utter.pitch = 1.15; // やや高めの元気な声
+
+        currentSpeechUtterance = utter;
+        window.speechSynthesis.speak(utter);
+      } catch (e) {
+        console.warn('SpeechSynthesis error:', e);
+      }
+    }
+
+    /* ====================================================================
+       2. ゲームロジック ＆ ステート管理
+       ==================================================================== */
+    let currentDifficulty = 'easy'; // 'easy' | 'normal' | 'hard'
+    let score = 0;
+    let lives = 3;
+    let combo = 0;
+    let level = 1;
+    let isPlaying = false;
+    let highScore = parseInt(localStorage.getItem('flag_game_high') || '0', 10);
+
+    // プレイヤーの現在の旗状態（true: 上がっている / false: 下がっている）
+    let playerRed = false;
+    let playerWhite = false;
+
+    // 現在の目標状態（判定用）
+    let targetRed = false;
+    let targetWhite = false;
+
+    // タイマー管理
+    let roundTimer = null;
+    let progressAnimId = null;
+    let roundDuration = 2400; // 現在ラウンドの制限時間（ミリ秒）
+    let roundStartTime = 0;
+
+    // DOM要素
+    const diffBadge = document.getElementById('diffBadge');
+    const diffDesc = document.getElementById('diffDesc');
+    const hiddenFlagsCover = document.getElementById('hiddenFlagsCover');
+    const livesContainer = document.getElementById('livesContainer');
+    const scoreDisplay = document.getElementById('scoreDisplay');
+    const levelBadge = document.getElementById('levelBadge');
+    const comboBadge = document.getElementById('comboBadge');
+    const timeProgressBar = document.getElementById('timeProgressBar');
+    const instructionText = document.getElementById('instructionText');
+    const speechBubble = document.getElementById('speechBubble');
+    const judgeOverlay = document.getElementById('judgeOverlay');
+    const judgeText = document.getElementById('judgeText');
+    const startModal = document.getElementById('startModal');
+    const gameOverModal = document.getElementById('gameOverModal');
+    const finalScoreDisplay = document.getElementById('finalScoreDisplay');
+    const finalTitleDisplay = document.getElementById('finalTitleDisplay');
+    const highScoreText = document.getElementById('highScoreText');
+
+    const instructorRedArm = document.getElementById('instructorRedArm');
+    const instructorWhiteArm = document.getElementById('instructorWhiteArm');
+    const instructorFace = document.getElementById('instructorFace');
+    const faceEyes = document.getElementById('faceEyes');
+    const faceMouth = document.getElementById('faceMouth');
+
+    const playerRedStatus = document.getElementById('playerRedStatus');
+    const playerWhiteStatus = document.getElementById('playerWhiteStatus');
+    const playerRedArm = document.getElementById('playerRedArm');
+    const playerWhiteArm = document.getElementById('playerWhiteArm');
+    const playerAvatarWrapper = document.getElementById('playerAvatarWrapper');
+    const playerEyes = document.getElementById('playerEyes');
+    const playerMouth = document.getElementById('playerMouth');
+
+    highScoreText.textContent = highScore;
+
+    // 難易度選択
+    function selectDifficulty(diff) {
+      currentDifficulty = diff;
+      playSE('click');
+
+      const btnEasy = document.getElementById('diffBtnEasy');
+      const btnNormal = document.getElementById('diffBtnNormal');
+      const btnHard = document.getElementById('diffBtnHard');
+
+      [btnEasy, btnNormal, btnHard].forEach(b => {
+        b.className = 'py-2 rounded-xl font-black text-xs border border-slate-700 bg-slate-800 text-slate-400 hover:text-white transition';
+      });
+
+      if (diff === 'easy') {
+        btnEasy.className = 'py-2 rounded-xl font-black text-xs border-2 border-emerald-400 bg-emerald-500/20 text-emerald-300 transition';
+        diffDesc.textContent = '教官の旗が見える（入門・練習用）';
+        diffBadge.textContent = 'EASY';
+        diffBadge.className = 'text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+      } else if (diff === 'normal') {
+        btnNormal.className = 'py-2 rounded-xl font-black text-xs border-2 border-amber-400 bg-amber-500/20 text-amber-300 transition';
+        diffDesc.textContent = '教官の旗は非表示！答え合わせあり';
+        diffBadge.textContent = 'NORMAL';
+        diffBadge.className = 'text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30';
+      } else {
+        btnHard.className = 'py-2 rounded-xl font-black text-xs border-2 border-rose-500 bg-rose-500/20 text-rose-300 transition';
+        diffDesc.textContent = '超高速！教官非表示＋難問ラッシュ';
+        diffBadge.textContent = 'HARD';
+        diffBadge.className = 'text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30';
+      }
+    }
+
+    /* ====================================================================
+       3. 命令バリエーション定義（全パターン解禁 & 状態遷移ロジック）
+       ==================================================================== */
+    // 教官が発令できる全命令リスト
+    const ALL_COMMAND_TEMPLATES = [
+      // 単一動作
+      { text: '赤上げて！', soundKey: 'red_up', reqRed: true, reqWhite: null, level: 1 },
+      { text: '赤下げて！', soundKey: 'red_down', reqRed: false, reqWhite: null, level: 1 },
+      { text: '白上げて！', soundKey: 'white_up', reqRed: null, reqWhite: true, level: 1 },
+      { text: '白下げて！', soundKey: 'white_down', reqRed: null, reqWhite: false, level: 1 },
+
+      // 複合・両手
+      { text: '赤上げて白上げて！', soundKey: 'both_up', reqRed: true, reqWhite: true, level: 2 },
+      { text: '赤下げて白下げて！', soundKey: 'both_down', reqRed: false, reqWhite: false, level: 2 },
+      { text: '赤上げて白下げて！', soundKey: 'red_up_white_down', reqRed: true, reqWhite: false, level: 2 },
+      { text: '白上げて赤下げて！', soundKey: 'white_up_red_down', reqRed: false, reqWhite: true, level: 2 },
+
+      // 否定・トラップ（キープ系）
+      { text: '赤上げない！', soundKey: 'trap_rednot', reqRed: false, reqWhite: null, level: 3 },
+      { text: '白上げない！', soundKey: 'trap_whitenot', reqRed: null, reqWhite: false, level: 3 },
+      { text: '赤下げないで白上げて！', soundKey: 'trap_rednot_whiteup', reqRed: true, reqWhite: true, level: 3 },
+      { text: '赤下げない！', soundKey: 'trap_red_dont_down', reqRed: true, reqWhite: null, level: 3 },
+      { text: '白下げない！', soundKey: 'trap_white_dont_down', reqRed: null, reqWhite: true, level: 3 },
+      { text: '白下げないで赤上げて！', soundKey: 'trap_whitenot_redup', reqRed: true, reqWhite: true, level: 3 }
+    ];
+
+    function pickCommand(curRed, curWhite, curLevel) {
+      // ハードモード時は最初から高レベル命令も解禁
+      const effectiveLevel = (currentDifficulty === 'hard') ? Math.max(curLevel, 3) : curLevel;
+      const available = ALL_COMMAND_TEMPLATES.filter(c => c.level <= effectiveLevel);
+      const chosen = available[Math.floor(Math.random() * available.length)];
+
+      let expectedRed = (chosen.reqRed !== null) ? chosen.reqRed : curRed;
+      let expectedWhite = (chosen.reqWhite !== null) ? chosen.reqWhite : curWhite;
+
+      if (chosen.text.includes('赤下げないで')) {
+        expectedRed = curRed;
+      }
+      if (chosen.text.includes('白下げないで')) {
+        expectedWhite = curWhite;
+      }
+
+      let movesNeeded = 0;
+      if (expectedRed !== curRed) movesNeeded++;
+      if (expectedWhite !== curWhite) movesNeeded++;
+
+      return {
+        text: chosen.text,
+        soundKey: chosen.soundKey,
+        targetRed: expectedRed,
+        targetWhite: expectedWhite,
+        instructorRed: expectedRed,
+        instructorWhite: expectedWhite,
+        movesNeeded: movesNeeded
+      };
+    }
+
+    /* ====================================================================
+       4. ゲーム進行フロー
+       ==================================================================== */
+    let currentMovesNeeded = 0;
+
+    function startGame() {
+      getAudioContext();
+      playSE('click');
+
+      score = 0;
+      lives = 3;
+      combo = 0;
+      level = 1;
+      isPlaying = true;
+
+      // 手元初期化（両方下げ）
+      playerRed = false;
+      playerWhite = false;
+      updatePlayerUI();
+
+      updateLivesUI();
+      updateScoreUI();
+
+      startModal.classList.add('hidden');
+      gameOverModal.classList.add('hidden');
+
+      setInstructorFace('normal');
+      nextRound();
+    }
+
+    function nextRound() {
+      if (!isPlaying) return;
+
+      // レベル計算
+      level = Math.min(Math.floor(score / 500) + 1, 5);
+      levelBadge.textContent = `Lv.${level}`;
+
+      // 命令選出
+      const cmd = pickCommand(playerRed, playerWhite, level);
+      targetRed = cmd.targetRed;
+      targetWhite = cmd.targetWhite;
+      currentMovesNeeded = cmd.movesNeeded;
+
+      // 難易度別の基本時間設計
+      let baseDuration = 2400;
+      if (currentDifficulty === 'easy') {
+        baseDuration = Math.max(2600 - (level - 1) * 180, 1800);
+      } else if (currentDifficulty === 'normal') {
+        baseDuration = Math.max(2200 - (level - 1) * 200, 1500);
+      } else { // hard
+        baseDuration = Math.max(1600 - (level - 1) * 160, 1050);
+      }
+
+      // 台詞の長さボーナス
+      const extraTimeForSpeech = Math.max(0, (cmd.text.length - 4) * (currentDifficulty === 'hard' ? 70 : 110));
+
+      // 2つ動かす必要がある場合の操作猶予
+      const extraTimeForTwoHands = (cmd.movesNeeded === 2) ? (currentDifficulty === 'hard' ? 900 : 1400) : 0;
+
+      // キープ指示のボーナス
+      const extraTimeForKeep = (cmd.movesNeeded === 0) ? 200 : 0;
+
+      roundDuration = baseDuration + extraTimeForSpeech + extraTimeForTwoHands + extraTimeForKeep;
+
+      // 吹き出し表示
+      instructionText.textContent = cmd.text;
+      speechBubble.classList.remove('animate-pop');
+      void speechBubble.offsetWidth;
+      speechBubble.classList.add('animate-pop');
+
+      // 教官の旗の表示制御（イージーなら指示通り見せる / ノーマル・ハードなら非表示）
+      if (currentDifficulty === 'easy') {
+        showInstructorFlags(true);
+        updateInstructorFlags(cmd.instructorRed, cmd.instructorWhite);
+      } else {
+        // ノーマル・ハード：指示中は教官の旗を隠す
+        showInstructorFlags(false);
+      }
+
+      setInstructorFace('speaking');
+
+      // 音声発話（ハードはさらに早口）
+      speakCommand(cmd.text, cmd.soundKey, currentDifficulty === 'hard' ? level + 2 : level);
+
+      // タイマーリセット
+      roundStartTime = performance.now();
+      if (roundTimer) clearTimeout(roundTimer);
+      if (progressAnimId) cancelAnimationFrame(progressAnimId);
+
+      updateProgressBar();
+
+      // 制限時間満了時に判定を実行
+      roundTimer = setTimeout(() => {
+        evaluateRound();
+      }, roundDuration);
+    }
+
+    function updateProgressBar() {
+      if (!isPlaying) return;
+      const elapsed = performance.now() - roundStartTime;
+      const remainingPercent = Math.max(0, 100 - (elapsed / roundDuration) * 100);
+      timeProgressBar.style.width = `${remainingPercent}%`;
+
+      if (remainingPercent > 0) {
+        progressAnimId = requestAnimationFrame(updateProgressBar);
+      }
+    }
+
+    // プレイヤーの操作反映
+    function setPlayerFlag(color, isUp) {
+      if (!isPlaying) return;
+      getAudioContext();
+      playSE('click');
+
+      if (color === 'red') {
+        playerRed = isUp;
+      } else {
+        playerWhite = isUp;
+      }
+      updatePlayerUI();
+    }
+
+    // ラウンド評価（タイムアップの瞬間に判定）
+    function evaluateRound() {
+      if (!isPlaying) return;
+
+      // 判定：タイムアップの瞬間にプレイヤーの旗が指示通りか
+      const isSuccess = (playerRed === targetRed && playerWhite === targetWhite);
+
+      // ★ ノーマル・ハードモードでも、判定の瞬間に正解の旗の位置を教官がパッと出して「答え合わせ」！
+      if (currentDifficulty !== 'easy') {
+        showInstructorFlags(true);
+        updateInstructorFlags(targetRed, targetWhite);
+      }
+
+      if (isSuccess) {
+        playSE('correct');
+        const diffMultiplier = (currentDifficulty === 'hard') ? 1.5 : (currentDifficulty === 'normal' ? 1.2 : 1.0);
+        const addedScore = Math.round((100 + (combo * 25)) * diffMultiplier);
+        score += addedScore;
+        combo++;
+
+        const praiseText = (currentMovesNeeded === 0) ? 'KEEP CLEAR! +' + addedScore : 'CLEAR! +' + addedScore;
+        showJudgeFeedback(praiseText, 'text-emerald-400');
+        setInstructorFace('happy');
+
+        setPlayerFace('happy');
+        playerAvatarWrapper.classList.remove('animate-hop');
+        void playerAvatarWrapper.offsetWidth;
+        playerAvatarWrapper.classList.add('animate-hop');
+
+        if (combo >= 3) {
+          comboBadge.textContent = `${combo} COMBO! 🔥`;
+          comboBadge.classList.remove('hidden');
+        }
+
+        if (score > highScore) {
+          highScore = score;
+          localStorage.setItem('flag_game_high', highScore);
+          highScoreText.textContent = highScore;
+        }
+
+        updateScoreUI();
+
+        // 答え合わせを確認させるため少し待ってから次へ
+        const waitTime = (currentDifficulty === 'hard') ? 600 : 750;
+        setTimeout(() => {
+          setInstructorFace('normal');
+          setPlayerFace('normal');
+          nextRound();
+        }, waitTime);
+
+      } else {
+        playSE('wrong');
+        lives--;
+        combo = 0;
+        comboBadge.classList.add('hidden');
+        updateLivesUI();
+
+        showJudgeFeedback('MISS!! 😵 正解はコレ！', 'text-rose-400');
+        setInstructorFace('shocked');
+        setPlayerFace('shocked');
+        triggerShake();
+
+        if (lives <= 0) {
+          endGame();
+        } else {
+          // 不正解時は答えの旗をじっくり見せる（1100ms）
+          setTimeout(() => {
+            setInstructorFace('normal');
+            setPlayerFace('normal');
+            nextRound();
+          }, 1150);
+        }
+      }
+    }
+
+    function endGame() {
+      isPlaying = false;
+      clearTimeout(roundTimer);
+      cancelAnimationFrame(progressAnimId);
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+      playSE('gameover');
+
+      let rankTitle = '見習い水兵';
+      if (score >= 4500) rankTitle = '超神速・P提督 👑';
+      else if (score >= 2800) rankTitle = '旗揚げマスター 🚩';
+      else if (score >= 1500) rankTitle = '熟練の航海士 ⭐';
+      else if (score >= 700) rankTitle = '一人前の水兵 ⚓';
+
+      finalScoreDisplay.textContent = score;
+      finalTitleDisplay.textContent = `難易度: ${currentDifficulty.toUpperCase()} / 称号: ${rankTitle}`;
+
+      setTimeout(() => {
+        gameOverModal.classList.remove('hidden');
+      }, 750);
+    }
+
+    /* ====================================================================
+       5. UI演出・アニメーションヘルパー
+       ==================================================================== */
+    // 教官の旗の表示/非表示（ノーマル・ハードのブラインド演出）
+    function showInstructorFlags(visible) {
+      if (visible) {
+        instructorRedArm.classList.remove('opacity-0', 'scale-75');
+        instructorWhiteArm.classList.remove('opacity-0', 'scale-75');
+        hiddenFlagsCover.classList.add('hidden');
+      } else {
+        // 旗を隠して「？」を表示
+        instructorRedArm.classList.add('opacity-0', 'scale-75');
+        instructorWhiteArm.classList.add('opacity-0', 'scale-75');
+        hiddenFlagsCover.classList.remove('hidden');
+      }
+    }
+
+    function updatePlayerUI() {
+      // テキストバッジ
+      playerRedStatus.textContent = playerRed ? '赤: 上げ ⬆️' : '赤: 下げ ⬇️';
+      playerRedStatus.className = playerRed 
+        ? 'text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-500 text-white shadow-sm'
+        : 'text-[10px] font-black px-2 py-0.5 rounded-md bg-rose-950 text-rose-300 border border-rose-800';
+
+      playerWhiteStatus.textContent = playerWhite ? '白: 上げ ⬆️' : '白: 下げ ⬇️';
+      playerWhiteStatus.className = playerWhite
+        ? 'text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-900 shadow-sm'
+        : 'text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-700 text-slate-200 border border-slate-600';
+
+      // プレイヤーの旗アニメーション（赤旗）
+      if (playerRed) {
+        playerRedArm.className = 'absolute left-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-up z-10';
+      } else {
+        playerRedArm.className = 'absolute left-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-down z-10';
+      }
+
+      // プレイヤーの旗アニメーション（白旗）
+      if (playerWhite) {
+        playerWhiteArm.className = 'absolute right-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-up z-10';
+      } else {
+        playerWhiteArm.className = 'absolute right-4 bottom-2 player-flag-rod flex flex-col items-center player-flag-down-right z-10';
+      }
+    }
+
+    function setPlayerFace(state) {
+      if (state === 'happy') {
+        playerEyes.innerHTML = '<div class="text-[11px] font-black text-slate-800 leading-none">^</div><div class="text-[11px] font-black text-slate-800 leading-none">^</div>';
+        playerMouth.className = 'w-3 h-1.5 bg-rose-500 rounded-b-full';
+      } else if (state === 'shocked') {
+        playerEyes.innerHTML = '<div class="text-[10px] font-black text-slate-800 leading-none">×</div><div class="text-[10px] font-black text-slate-800 leading-none">×</div>';
+        playerMouth.className = 'w-2 h-2 bg-slate-800 rounded-full';
+      } else {
+        playerEyes.innerHTML = '<div class="w-2 h-2.5 bg-slate-800 rounded-full"></div><div class="w-2 h-2.5 bg-slate-800 rounded-full"></div>';
+        playerMouth.className = 'w-2.5 h-1 bg-rose-400 rounded-full';
+      }
+    }
+
+    function updateInstructorFlags(redUp, whiteUp) {
+      if (redUp) {
+        instructorRedArm.className = 'absolute left-2 bottom-6 flag-rod flex flex-col items-center flag-up';
+      } else {
+        instructorRedArm.className = 'absolute left-2 bottom-6 flag-rod flex flex-col items-center flag-down';
+      }
+
+      if (whiteUp) {
+        instructorWhiteArm.className = 'absolute right-2 bottom-6 flag-rod flex flex-col items-center flag-up';
+      } else {
+        instructorWhiteArm.className = 'absolute right-2 bottom-6 flag-rod flex flex-col items-center flag-down-right';
+      }
+    }
+
+    function setInstructorFace(state) {
+      if (state === 'speaking') {
+        faceEyes.innerHTML = '<div class="w-2.5 h-3 bg-slate-900 rounded-full"></div><div class="w-2.5 h-3 bg-slate-900 rounded-full"></div>';
+        faceMouth.className = 'w-4 h-3 bg-rose-600 rounded-full border border-slate-900 transition-all';
+      } else if (state === 'happy') {
+        faceEyes.innerHTML = '<div class="text-xs font-black text-slate-900 leading-none">^</div><div class="text-xs font-black text-slate-900 leading-none">^</div>';
+        faceMouth.className = 'w-4 h-2 bg-rose-500 rounded-b-full border-t border-slate-900';
+      } else if (state === 'shocked') {
+        faceEyes.innerHTML = '<div class="text-xs font-black text-slate-900 leading-none">×</div><div class="text-xs font-black text-slate-900 leading-none">×</div>';
+        faceMouth.className = 'w-3 h-3 bg-slate-900 rounded-full';
+      } else {
+        faceEyes.innerHTML = '<div class="w-2.5 h-3 bg-slate-900 rounded-full"></div><div class="w-2.5 h-3 bg-slate-900 rounded-full"></div>';
+        faceMouth.className = 'w-3.5 h-1.5 bg-rose-500 rounded-full';
+      }
+    }
+
+    function updateLivesUI() {
+      const hearts = ['heart1', 'heart2', 'heart3'];
+      hearts.forEach((hId, index) => {
+        const el = document.getElementById(hId);
+        if (index < lives) {
+          el.textContent = '❤️';
+          el.classList.remove('opacity-20');
+        } else {
+          el.textContent = '💔';
+          el.classList.add('opacity-20');
+        }
+      });
+    }
+
+    function updateScoreUI() {
+      scoreDisplay.textContent = String(score).padStart(4, '0');
+    }
+
+    function returnToStartModal() {
+      playSE('click');
+      gameOverModal.classList.add('hidden');
+      startModal.classList.remove('hidden');
+    }
+
+    function showJudgeFeedback(text, colorClass) {
+      judgeText.textContent = text;
+      judgeText.className = `text-3xl sm:text-4xl font-black drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)] px-6 py-2 rounded-2xl bg-black/70 ${colorClass}`;
+      judgeOverlay.classList.remove('opacity-0');
+      judgeOverlay.classList.add('opacity-100');
+
+      setTimeout(() => {
+        judgeOverlay.classList.remove('opacity-100');
+        judgeOverlay.classList.add('opacity-0');
+      }, 450);
+    }
+
+    function triggerShake() {
+      const main = document.querySelector('main');
+      main.classList.remove('animate-shake');
+      void main.offsetWidth;
+      main.classList.add('animate-shake');
+    }
+
+    /* ====================================================================
+       6. キーボード ＆ コントロールリスナー
+       ==================================================================== */
+    window.addEventListener('keydown', (e) => {
+      if (!isPlaying) return;
+      const key = e.key.toLowerCase();
+
+      // 赤旗操作
+      if (key === 'q' || key === 'w' || key === 'arrowup') {
+        setPlayerFlag('red', true);
+      } else if (key === 'a' || key === 's' || key === 'arrowdown') {
+        setPlayerFlag('red', false);
+      }
+
+      // 白旗操作
+      if (key === 'o' || key === 'p' || key === 'i') {
+        setPlayerFlag('white', true);
+      } else if (key === 'l' || key === 'k' || key === 'm') {
+        setPlayerFlag('white', false);
+      }
+    });
+
+    // サウンドトグルボタン
+    const soundToggleBtn = document.getElementById('soundToggleBtn');
+    const voiceToggleBtn = document.getElementById('voiceToggleBtn');
+
+    soundToggleBtn.addEventListener('click', () => {
+      isSoundEnabled = !isSoundEnabled;
+      soundToggleBtn.textContent = isSoundEnabled ? '🔔' : '🔕';
+      soundToggleBtn.classList.toggle('opacity-50', !isSoundEnabled);
+    });
+
+    voiceToggleBtn.addEventListener('click', () => {
+      isVoiceEnabled = !isVoiceEnabled;
+      voiceToggleBtn.textContent = isVoiceEnabled ? '🔊' : '🔇';
+      voiceToggleBtn.classList.toggle('opacity-50', !isVoiceEnabled);
+      if (!isVoiceEnabled && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    });
+  </script>
+</body>
+</html>
